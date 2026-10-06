@@ -9,10 +9,13 @@
 - [x] Feelcoin network defaults
 - [x] Antivirus / false-positive policy
 - [ ] Local daemon lifecycle management
+- [x] Local daemon RPC health and network-info probe
 - [ ] Wallet RPC lifecycle management
+- [x] Local wallet RPC service/version probe
 - [ ] Create / open / restore wallet
 - [ ] Wallet lock / unlock flow
-- [ ] Sync height and network height
+- [x] Read local daemon height, peer counts, difficulty and sync state
+- [ ] Managed sync progress and network-height UX
 - [ ] Balance display
 - [ ] Receive address + QR code
 - [ ] Send transaction flow
