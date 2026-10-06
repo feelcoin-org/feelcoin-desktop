@@ -24,6 +24,15 @@ type DaemonInfo = {
   error: string | null;
 };
 
+type WalletRpcStatus = {
+  reachable: boolean;
+  host: string;
+  port: number;
+  version: number | null;
+  release: boolean | null;
+  error: string | null;
+};
+
 const FALLBACK_NETWORK: NetworkDefaults = {
   p2p_port: 35780,
   daemon_rpc_port: 35781,
@@ -47,6 +56,15 @@ const EMPTY_DAEMON: DaemonInfo = {
   error: null,
 };
 
+const EMPTY_WALLET_RPC: WalletRpcStatus = {
+  reachable: false,
+  host: "127.0.0.1",
+  port: 35784,
+  version: null,
+  release: null,
+  error: null,
+};
+
 function formatNumber(value: number | null) {
   return value === null ? "—" : new Intl.NumberFormat().format(value);
 }
@@ -54,18 +72,24 @@ function formatNumber(value: number | null) {
 function App() {
   const [network, setNetwork] = useState<NetworkDefaults>(FALLBACK_NETWORK);
   const [daemon, setDaemon] = useState<DaemonInfo>(EMPTY_DAEMON);
+  const [walletRpc, setWalletRpc] = useState<WalletRpcStatus>(EMPTY_WALLET_RPC);
   const [checking, setChecking] = useState(false);
 
-  async function refreshDaemon() {
+  async function refreshServices() {
     setChecking(true);
     try {
-      const result = await invoke<DaemonInfo>("daemon_info");
-      setDaemon(result);
+      const [daemonResult, walletResult] = await Promise.all([
+        invoke<DaemonInfo>("daemon_info"),
+        invoke<WalletRpcStatus>("wallet_rpc_status"),
+      ]);
+      setDaemon(daemonResult);
+      setWalletRpc(walletResult);
     } catch {
       setDaemon({
         ...EMPTY_DAEMON,
         error: "Unable to query the local desktop backend.",
       });
+      setWalletRpc(EMPTY_WALLET_RPC);
     } finally {
       setChecking(false);
     }
@@ -76,7 +100,7 @@ function App() {
       .then(setNetwork)
       .catch(() => setNetwork(FALLBACK_NETWORK));
 
-    refreshDaemon();
+    refreshServices();
   }, []);
 
   const totalConnections =
@@ -163,13 +187,7 @@ function App() {
             <strong>{daemon.reachable ? formatNumber(totalConnections) : "—"}</strong>
           </div>
           <div>
-            <span>TARGET</span>
-            <strong>
-              {daemon.target_seconds === null ? "—" : `${daemon.target_seconds}s`}
-            </strong>
-          </div>
-          <div>
-            <span>SYNC</span>
+            <span>NODE SYNC</span>
             <strong>
               {daemon.synchronized === null
                 ? "—"
@@ -177,6 +195,10 @@ function App() {
                   ? "Synced"
                   : "Syncing"}
             </strong>
+          </div>
+          <div>
+            <span>WALLET RPC</span>
+            <strong>{walletRpc.reachable ? "Ready" : "Offline"}</strong>
           </div>
         </section>
 
@@ -192,7 +214,9 @@ function App() {
 
             <div className="metric">
               <span>RPC endpoint</span>
-              <strong>{daemon.host}:{network.daemon_rpc_port}</strong>
+              <strong>
+                {daemon.host}:{network.daemon_rpc_port}
+              </strong>
             </div>
 
             <div className="metric">
@@ -212,9 +236,41 @@ function App() {
 
             {daemon.error && <p className="error-note">{daemon.error}</p>}
 
-            <button className="primary" onClick={refreshDaemon} disabled={checking}>
-              {checking ? "Checking…" : "Refresh daemon status"}
+            <button className="primary" onClick={refreshServices} disabled={checking}>
+              {checking ? "Checking…" : "Refresh local services"}
             </button>
+          </article>
+
+          <article className="card">
+            <div className="card-heading">
+              <div>
+                <p className="eyebrow">LOCAL WALLET SERVICE</p>
+                <h3>Wallet RPC</h3>
+              </div>
+              <span className={walletRpc.reachable ? "dot online-dot" : "dot"} />
+            </div>
+
+            <div className="metric">
+              <span>RPC endpoint</span>
+              <strong>
+                {walletRpc.host}:{network.wallet_rpc_port}
+              </strong>
+            </div>
+
+            <div className="metric">
+              <span>Status</span>
+              <strong>{walletRpc.reachable ? "Ready" : "Not detected"}</strong>
+            </div>
+
+            <div className="metric">
+              <span>RPC version</span>
+              <strong>{formatNumber(walletRpc.version)}</strong>
+            </div>
+
+            <p className="service-note">
+              This probe only checks the local Feelcoin wallet RPC service. It
+              does not request a seed, private key, password, or wallet file.
+            </p>
           </article>
 
           <article className="card">
@@ -246,7 +302,22 @@ function App() {
               <strong>{daemon.version ?? "—"}</strong>
               <span>Difficulty</span>
               <strong>{formatNumber(daemon.difficulty)}</strong>
+              <span>Target block time</span>
+              <strong>
+                {daemon.target_seconds === null ? "—" : `${daemon.target_seconds}s`}
+              </strong>
             </div>
+          </article>
+
+          <article className="card">
+            <p className="eyebrow">NEXT MILESTONE</p>
+            <h3>Open a real wallet</h3>
+            <p className="service-note">
+              The next step is controlled wallet RPC lifecycle management:
+              create, open, restore, lock, send, receive, and transaction history.
+              Wallet secrets will stay local and will never be written to logs.
+            </p>
+            <div className="coming-soon">Wallet controls are under development</div>
           </article>
 
           <article className="card wide">
