@@ -117,11 +117,13 @@ jobs:
           cd core
           git submodule update --init --recursive --force
           make release-static-win64 -j2
-          test -f build/release/bin/feelcoind.exe
-          test -f build/release/bin/feelcoin-wallet-rpc.exe
+          daemon="$(find build -type f -name feelcoind.exe -print -quit)"
+          wallet_rpc="$(find build -type f -name feelcoin-wallet-rpc.exe -print -quit)"
+          test -n "$daemon"
+          test -n "$wallet_rpc"
           mkdir -p ../src-tauri/resources/bin
-          cp build/release/bin/feelcoind.exe ../src-tauri/resources/bin/feelcoind.exe
-          cp build/release/bin/feelcoin-wallet-rpc.exe ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe
+          cp "$daemon" ../src-tauri/resources/bin/feelcoind.exe
+          cp "$wallet_rpc" ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe
           sha256sum ../src-tauri/resources/bin/feelcoind.exe ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe
 
       - name: Setup Node.js
