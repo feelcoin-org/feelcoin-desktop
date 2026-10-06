@@ -18,6 +18,6 @@ Please do not publish wallet-security vulnerabilities as a public issue before m
 
 Contact the Feelcoin project through the official channels listed at:
 
-https://feelcoin.online
+https://feelcoin.org
 
 Do not send seed phrases, private spend keys, wallet files, passwords, or other secrets in a vulnerability report.
