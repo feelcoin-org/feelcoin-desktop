@@ -1,10 +1,12 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use std::io::{Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 const LOCAL_DAEMON_HOST: &str = "127.0.0.1";
 const LOCAL_DAEMON_RPC_PORT: u16 = 35781;
+const LOCAL_WALLET_RPC_PORT: u16 = 35784;
 
 #[derive(Serialize)]
 struct NetworkDefaults {
@@ -12,13 +14,6 @@ struct NetworkDefaults {
     daemon_rpc_port: u16,
     zmq_port: u16,
     wallet_rpc_port: u16,
-}
-
-#[derive(Serialize)]
-struct RpcStatus {
-    reachable: bool,
-    host: String,
-    port: u16,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -51,45 +46,37 @@ struct DaemonInfo {
     error: Option<String>,
 }
 
+#[derive(Serialize)]
+struct WalletRpcStatus {
+    reachable: bool,
+    host: String,
+    port: u16,
+    version: Option<u64>,
+    release: Option<bool>,
+    error: Option<String>,
+}
+
 #[tauri::command]
 fn network_defaults() -> NetworkDefaults {
     NetworkDefaults {
         p2p_port: 35780,
         daemon_rpc_port: LOCAL_DAEMON_RPC_PORT,
         zmq_port: 35782,
-        wallet_rpc_port: 35784,
+        wallet_rpc_port: LOCAL_WALLET_RPC_PORT,
     }
 }
 
-fn local_daemon_socket() -> Option<std::net::SocketAddr> {
-    format!("{LOCAL_DAEMON_HOST}:{LOCAL_DAEMON_RPC_PORT}")
+fn local_socket(port: u16) -> Option<SocketAddr> {
+    format!("{LOCAL_DAEMON_HOST}:{port}")
         .to_socket_addrs()
         .ok()
         .and_then(|mut addresses| addresses.next())
 }
 
-fn local_daemon_reachable() -> bool {
-    local_daemon_socket()
-        .map(|address| {
-            TcpStream::connect_timeout(&address, Duration::from_millis(700)).is_ok()
-        })
-        .unwrap_or(false)
-}
-
-#[tauri::command]
-fn check_daemon_rpc() -> RpcStatus {
-    RpcStatus {
-        reachable: local_daemon_reachable(),
-        host: LOCAL_DAEMON_HOST.to_string(),
-        port: LOCAL_DAEMON_RPC_PORT,
-    }
-}
-
-fn fetch_local_daemon_info() -> Result<GetInfoResponse, String> {
-    let address =
-        local_daemon_socket().ok_or_else(|| "Unable to resolve local daemon".to_string())?;
-    let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(900))
-        .map_err(|_| "Local Feelcoin daemon is not reachable".to_string())?;
+fn open_local_stream(port: u16) -> Result<TcpStream, String> {
+    let address = local_socket(port).ok_or_else(|| "Unable to resolve local service".to_string())?;
+    let stream = TcpStream::connect_timeout(&address, Duration::from_millis(900))
+        .map_err(|_| "Local service is not reachable".to_string())?;
 
     stream
         .set_read_timeout(Some(Duration::from_secs(2)))
@@ -98,6 +85,34 @@ fn fetch_local_daemon_info() -> Result<GetInfoResponse, String> {
         .set_write_timeout(Some(Duration::from_secs(2)))
         .map_err(|error| error.to_string())?;
 
+    Ok(stream)
+}
+
+fn read_http_json(mut stream: TcpStream, request: &[u8]) -> Result<Value, String> {
+    stream
+        .write_all(request)
+        .map_err(|error| format!("Unable to write local RPC request: {error}"))?;
+
+    let mut response = Vec::new();
+    stream
+        .read_to_end(&mut response)
+        .map_err(|error| format!("Unable to read local RPC response: {error}"))?;
+
+    let response = String::from_utf8(response)
+        .map_err(|_| "Local RPC returned a non-UTF-8 response".to_string())?;
+    let (headers, body) = response
+        .split_once("\r\n\r\n")
+        .ok_or_else(|| "Local RPC returned an invalid HTTP response".to_string())?;
+
+    if !headers.starts_with("HTTP/1.1 200") && !headers.starts_with("HTTP/1.0 200") {
+        return Err("Local RPC returned a non-success HTTP status".to_string());
+    }
+
+    serde_json::from_str(body).map_err(|error| format!("Unable to parse local RPC JSON: {error}"))
+}
+
+fn fetch_local_daemon_info() -> Result<GetInfoResponse, String> {
+    let stream = open_local_stream(LOCAL_DAEMON_RPC_PORT)?;
     let request = concat!(
         "GET /get_info HTTP/1.1\r\n",
         "Host: 127.0.0.1:35781\r\n",
@@ -106,27 +121,38 @@ fn fetch_local_daemon_info() -> Result<GetInfoResponse, String> {
         "\r\n"
     );
 
-    stream
-        .write_all(request.as_bytes())
-        .map_err(|error| format!("Unable to query local daemon: {error}"))?;
+    let value = read_http_json(stream, request.as_bytes())?;
+    serde_json::from_value(value)
+        .map_err(|error| format!("Unable to decode daemon information: {error}"))
+}
 
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|error| format!("Unable to read local daemon response: {error}"))?;
+fn call_wallet_rpc(method: &str) -> Result<Value, String> {
+    let payload = json!({
+        "jsonrpc": "2.0",
+        "id": "feelcoin-desktop",
+        "method": method
+    })
+    .to_string();
 
-    let response = String::from_utf8(response)
-        .map_err(|_| "Local daemon returned a non-UTF-8 response".to_string())?;
-    let (headers, body) = response
-        .split_once("\r\n\r\n")
-        .ok_or_else(|| "Local daemon returned an invalid HTTP response".to_string())?;
+    let request = format!(
+        concat!(
+            "POST /json_rpc HTTP/1.1\r\n",
+            "Host: 127.0.0.1:35784\r\n",
+            "Content-Type: application/json\r\n",
+            "Accept: application/json\r\n",
+            "Content-Length: {}\r\n",
+            "Connection: close\r\n",
+            "\r\n",
+            "{}"
+        ),
+        payload.len(),
+        payload
+    );
 
-    if !headers.starts_with("HTTP/1.1 200") && !headers.starts_with("HTTP/1.0 200") {
-        return Err("Local daemon returned a non-success HTTP status".to_string());
-    }
-
-    serde_json::from_str(body)
-        .map_err(|error| format!("Unable to parse local daemon information: {error}"))
+    read_http_json(
+        open_local_stream(LOCAL_WALLET_RPC_PORT)?,
+        request.as_bytes(),
+    )
 }
 
 #[tauri::command]
@@ -165,13 +191,44 @@ fn daemon_info() -> DaemonInfo {
     }
 }
 
+#[tauri::command]
+fn wallet_rpc_status() -> WalletRpcStatus {
+    match call_wallet_rpc("get_version") {
+        Ok(value) => WalletRpcStatus {
+            reachable: value.get("error").is_none(),
+            host: LOCAL_DAEMON_HOST.to_string(),
+            port: LOCAL_WALLET_RPC_PORT,
+            version: value
+                .get("result")
+                .and_then(|result| result.get("version"))
+                .and_then(Value::as_u64),
+            release: value
+                .get("result")
+                .and_then(|result| result.get("release"))
+                .and_then(Value::as_bool),
+            error: value
+                .get("error")
+                .map(|error| error.to_string())
+                .filter(|error| !error.is_empty()),
+        },
+        Err(error) => WalletRpcStatus {
+            reachable: false,
+            host: LOCAL_DAEMON_HOST.to_string(),
+            port: LOCAL_WALLET_RPC_PORT,
+            version: None,
+            release: None,
+            error: Some(error),
+        },
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             network_defaults,
-            check_daemon_rpc,
-            daemon_info
+            daemon_info,
+            wallet_rpc_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running Feelcoin Desktop");
