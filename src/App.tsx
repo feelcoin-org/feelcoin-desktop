@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+
+type View = "overview" | "wallet" | "send" | "receive" | "transactions" | "node";
 
 type NetworkDefaults = {
   p2p_port: number;
@@ -33,6 +35,26 @@ type WalletRpcStatus = {
   error: string | null;
 };
 
+type WalletSummary = {
+  balance: number;
+  unlocked_balance: number;
+  address: string;
+  height: number;
+};
+
+type TransferEntry = {
+  amount?: number;
+  fee?: number;
+  height?: number;
+  timestamp?: number;
+  txid?: string;
+  tx_hash?: string;
+  address?: string;
+  type?: string;
+};
+
+type TransferHistory = Record<string, TransferEntry[]>;
+
 const FALLBACK_NETWORK: NetworkDefaults = {
   p2p_port: 35780,
   daemon_rpc_port: 35781,
@@ -65,15 +87,58 @@ const EMPTY_WALLET_RPC: WalletRpcStatus = {
   error: null,
 };
 
-function formatNumber(value: number | null) {
-  return value === null ? "—" : new Intl.NumberFormat().format(value);
+function formatNumber(value: number | null | undefined) {
+  return value == null ? "—" : new Intl.NumberFormat().format(value);
+}
+
+function formatFeel(atomic: number | null | undefined) {
+  if (atomic == null) return "—";
+  const raw = Math.trunc(atomic).toString().padStart(13, "0");
+  const whole = raw.slice(0, -12) || "0";
+  const fractional = raw.slice(-12).replace(/0+$/, "");
+  return fractional ? `${whole}.${fractional} FEEL` : `${whole} FEEL`;
+}
+
+function feelToAtomicString(input: string): string {
+  const trimmed = input.trim();
+  if (!/^\d+(\.\d{0,12})?$/.test(trimmed)) {
+    throw new Error("Enter a valid FEEL amount with up to 12 decimal places.");
+  }
+
+  const [whole, fraction = ""] = trimmed.split(".");
+  const atomic = BigInt(whole) * 1_000_000_000_000n + BigInt((fraction + "0".repeat(12)).slice(0, 12));
+
+  if (atomic <= 0n || atomic > 18_446_744_073_709_551_615n) {
+    throw new Error("Amount is outside the supported range.");
+  }
+
+  return atomic.toString();
 }
 
 function App() {
+  const [view, setView] = useState<View>("overview");
   const [network, setNetwork] = useState<NetworkDefaults>(FALLBACK_NETWORK);
   const [daemon, setDaemon] = useState<DaemonInfo>(EMPTY_DAEMON);
   const [walletRpc, setWalletRpc] = useState<WalletRpcStatus>(EMPTY_WALLET_RPC);
+  const [wallet, setWallet] = useState<WalletSummary | null>(null);
+  const [history, setHistory] = useState<TransferHistory>({});
   const [checking, setChecking] = useState(false);
+  const [serviceError, setServiceError] = useState<string | null>(null);
+  const [walletMessage, setWalletMessage] = useState<string | null>(null);
+
+  const [walletName, setWalletName] = useState("");
+  const [walletPassword, setWalletPassword] = useState("");
+  const [seed, setSeed] = useState("");
+  const [restoreHeight, setRestoreHeight] = useState("0");
+
+  const [sendAddress, setSendAddress] = useState("");
+  const [sendAmount, setSendAmount] = useState("");
+  const [sendResult, setSendResult] = useState<string | null>(null);
+
+  const totalConnections = useMemo(
+    () => (daemon.incoming_connections ?? 0) + (daemon.outgoing_connections ?? 0),
+    [daemon.incoming_connections, daemon.outgoing_connections],
+  );
 
   async function refreshServices() {
     setChecking(true);
@@ -84,14 +149,40 @@ function App() {
       ]);
       setDaemon(daemonResult);
       setWalletRpc(walletResult);
-    } catch {
-      setDaemon({
-        ...EMPTY_DAEMON,
-        error: "Unable to query the local desktop backend.",
-      });
-      setWalletRpc(EMPTY_WALLET_RPC);
+
+      if (walletResult.reachable) {
+        try {
+          const summary = await invoke<WalletSummary>("wallet_summary");
+          setWallet(summary);
+        } catch {
+          setWallet(null);
+        }
+      } else {
+        setWallet(null);
+      }
     } finally {
       setChecking(false);
+    }
+  }
+
+  async function startServices() {
+    setServiceError(null);
+    try {
+      await invoke("start_local_services");
+      await new Promise((resolve) => window.setTimeout(resolve, 1600));
+      await refreshServices();
+    } catch (error) {
+      setServiceError(String(error));
+      await refreshServices();
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const result = await invoke<TransferHistory>("transaction_history");
+      setHistory(result ?? {});
+    } catch {
+      setHistory({});
     }
   }
 
@@ -100,11 +191,111 @@ function App() {
       .then(setNetwork)
       .catch(() => setNetwork(FALLBACK_NETWORK));
 
-    refreshServices();
+    startServices();
+
+    const timer = window.setInterval(() => {
+      refreshServices();
+    }, 7000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
-  const totalConnections =
-    (daemon.incoming_connections ?? 0) + (daemon.outgoing_connections ?? 0);
+  useEffect(() => {
+    if (view === "transactions" && wallet) {
+      loadHistory();
+    }
+  }, [view, wallet?.address]);
+
+  async function handleWalletAction(action: "create" | "open" | "restore") {
+    setWalletMessage(null);
+
+    try {
+      if (!walletName.trim()) throw new Error("Choose a wallet name.");
+
+      if (action === "create") {
+        await invoke("create_wallet", {
+          filename: walletName.trim(),
+          password: walletPassword,
+        });
+        setWalletMessage("Wallet created successfully.");
+      } else if (action === "open") {
+        await invoke("open_wallet", {
+          filename: walletName.trim(),
+          password: walletPassword,
+        });
+        setWalletMessage("Wallet opened.");
+      } else {
+        if (!seed.trim()) throw new Error("Enter the recovery seed.");
+        await invoke("restore_wallet", {
+          filename: walletName.trim(),
+          password: walletPassword,
+          seed: seed.trim(),
+          restoreHeight: Number(restoreHeight || "0"),
+        });
+        setWalletMessage("Wallet restored. Synchronization may take a while.");
+        setSeed("");
+      }
+
+      setWalletPassword("");
+      await refreshServices();
+      setView("overview");
+    } catch (error) {
+      setWalletMessage(String(error));
+    }
+  }
+
+  async function handleCloseWallet() {
+    try {
+      await invoke("close_wallet");
+      setWallet(null);
+      setWalletMessage("Wallet closed safely.");
+      setView("wallet");
+    } catch (error) {
+      setWalletMessage(String(error));
+    }
+  }
+
+  async function handleSend(event: FormEvent) {
+    event.preventDefault();
+    setSendResult(null);
+
+    try {
+      const amountAtomic = feelToAtomicString(sendAmount);
+      const accepted = window.confirm(
+        `Send ${sendAmount.trim()} FEEL to\n\n${sendAddress.trim()}\n\nThis will create a real Feelcoin transaction.`,
+      );
+      if (!accepted) return;
+
+      const result = await invoke<{ tx_hash: string; fee: number; amount: number }>("send_feel", {
+        address: sendAddress.trim(),
+        amountAtomic,
+      });
+
+      setSendResult(`Transaction submitted: ${result.tx_hash || "hash pending"}`);
+      setSendAddress("");
+      setSendAmount("");
+      await refreshServices();
+      await loadHistory();
+    } catch (error) {
+      setSendResult(String(error));
+    }
+  }
+
+  const transferRows = Object.entries(history).flatMap(([group, rows]) =>
+    (rows || []).map((entry) => ({ ...entry, group })),
+  );
+
+  function navButton(target: View, label: string, disabled = false) {
+    return (
+      <button
+        className={`nav-item ${view === target ? "active" : ""}`}
+        disabled={disabled}
+        onClick={() => setView(target)}
+      >
+        {label}
+      </button>
+    );
+  }
 
   return (
     <main className="app-shell">
@@ -113,37 +304,24 @@ function App() {
           <img className="coin-mark" src="/feelcoin-logo.png" alt="Feelcoin logo" />
           <div>
             <strong>FEELCOIN</strong>
-            <span>DESKTOP</span>
+            <span>DESKTOP ALPHA</span>
           </div>
         </div>
 
         <nav>
-          <button className="nav-item active">Overview</button>
-          <button className="nav-item" disabled>
-            Wallet
-          </button>
-          <button className="nav-item" disabled>
-            Send
-          </button>
-          <button className="nav-item" disabled>
-            Receive
-          </button>
-          <button className="nav-item" disabled>
-            Transactions
-          </button>
-          <button className="nav-item" disabled>
-            Node
-          </button>
-          <button className="nav-item" disabled>
-            Settings
-          </button>
+          {navButton("overview", "Overview")}
+          {navButton("wallet", "Wallet")}
+          {navButton("send", "Send", !wallet)}
+          {navButton("receive", "Receive", !wallet)}
+          {navButton("transactions", "Transactions", !wallet)}
+          {navButton("node", "Node")}
         </nav>
 
         <div className="sidebar-note">
           <span className="shield">✓</span>
           <div>
             <strong>No bundled miner</strong>
-            <small>Mining remains separate and opt-in.</small>
+            <small>Only the official daemon and wallet RPC are included.</small>
           </div>
         </div>
       </aside>
@@ -151,204 +329,319 @@ function App() {
       <section className="content">
         <header className="topbar">
           <div>
-            <p className="eyebrow">OFFICIAL FEELCOIN WALLET</p>
-            <h1>Welcome to Feelcoin Desktop</h1>
-            <p className="subtle">
-              Local-first wallet control with transparent network status.
-            </p>
+            <p className="eyebrow">OFFICIAL FEELCOIN WALLET · ALPHA</p>
+            <h1>Feelcoin Desktop</h1>
+            <p className="subtle">Self-contained local wallet for the Feelcoin community.</p>
           </div>
 
-          <div className={daemon.reachable ? "status online" : "status offline"}>
-            <span />
-            {daemon.reachable ? "Local daemon online" : "Local daemon offline"}
+          <div className="status-stack">
+            <div className={daemon.reachable ? "status online" : "status offline"}>
+              <span />
+              {daemon.reachable ? "Daemon online" : "Daemon starting"}
+            </div>
+            <div className={walletRpc.reachable ? "status online" : "status offline"}>
+              <span />
+              {walletRpc.reachable ? "Wallet RPC ready" : "Wallet RPC starting"}
+            </div>
           </div>
         </header>
 
-        <section className="hero-card">
-          <div>
-            <p className="eyebrow">FEELCOIN NETWORK</p>
-            <h2>In Feels We Trust.</h2>
-            <p>
-              Feelcoin Desktop is being built around explicit local-node control,
-              transparent processes, and a clean wallet package with no hidden
-              mining component.
-            </p>
+        {serviceError && (
+          <div className="banner error-banner">
+            <strong>Local service startup issue</strong>
+            <span>{serviceError}</span>
+            <button onClick={startServices}>Retry</button>
           </div>
-          <img className="hero-symbol" src="/feelcoin-logo.png" alt="Feelcoin" />
-        </section>
+        )}
 
-        <section className="network-strip">
-          <div>
-            <span>BLOCK HEIGHT</span>
-            <strong>{formatNumber(daemon.height)}</strong>
-          </div>
-          <div>
-            <span>CONNECTIONS</span>
-            <strong>{daemon.reachable ? formatNumber(totalConnections) : "—"}</strong>
-          </div>
-          <div>
-            <span>NODE SYNC</span>
-            <strong>
-              {daemon.synchronized === null
-                ? "—"
-                : daemon.synchronized
-                  ? "Synced"
-                  : "Syncing"}
-            </strong>
-          </div>
-          <div>
-            <span>WALLET RPC</span>
-            <strong>{walletRpc.reachable ? "Ready" : "Offline"}</strong>
-          </div>
-        </section>
-
-        <section className="grid">
-          <article className="card">
-            <div className="card-heading">
+        {view === "overview" && (
+          <>
+            <section className="hero-card">
               <div>
+                <p className="eyebrow">FEELCOIN NETWORK</p>
+                <h2>In Feels We Trust.</h2>
+                <p>
+                  One application, one local wallet experience. Feelcoin Desktop starts the
+                  official Feelcoin node and wallet service automatically — no terminal required.
+                </p>
+              </div>
+              <img className="hero-symbol" src="/feelcoin-logo.png" alt="Feelcoin" />
+            </section>
+
+            <section className="network-strip">
+              <div>
+                <span>BLOCK HEIGHT</span>
+                <strong>{formatNumber(daemon.height)}</strong>
+              </div>
+              <div>
+                <span>CONNECTIONS</span>
+                <strong>{daemon.reachable ? formatNumber(totalConnections) : "—"}</strong>
+              </div>
+              <div>
+                <span>NODE SYNC</span>
+                <strong>
+                  {daemon.synchronized == null ? "—" : daemon.synchronized ? "Synced" : "Syncing"}
+                </strong>
+              </div>
+              <div>
+                <span>WALLET</span>
+                <strong>{wallet ? formatFeel(wallet.unlocked_balance) : "Closed"}</strong>
+              </div>
+            </section>
+
+            <section className="grid">
+              <article className="card">
+                <div className="card-heading">
+                  <div>
+                    <p className="eyebrow">YOUR WALLET</p>
+                    <h3>{wallet ? "Wallet ready" : "Create or open a wallet"}</h3>
+                  </div>
+                  <span className={wallet ? "dot online-dot" : "dot"} />
+                </div>
+
+                {wallet ? (
+                  <>
+                    <div className="balance-hero">{formatFeel(wallet.balance)}</div>
+                    <div className="metric">
+                      <span>Unlocked</span>
+                      <strong>{formatFeel(wallet.unlocked_balance)}</strong>
+                    </div>
+                    <div className="metric">
+                      <span>Wallet height</span>
+                      <strong>{formatNumber(wallet.height)}</strong>
+                    </div>
+                    <div className="action-row">
+                      <button className="primary" onClick={() => setView("send")}>Send</button>
+                      <button className="secondary" onClick={() => setView("receive")}>Receive</button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="service-note">
+                      New here? Create a wallet. Already have one? Open or restore it locally.
+                    </p>
+                    <button className="primary" onClick={() => setView("wallet")}>
+                      Set up wallet
+                    </button>
+                  </>
+                )}
+              </article>
+
+              <article className="card">
                 <p className="eyebrow">LOCAL NODE</p>
-                <h3>Daemon status</h3>
+                <h3>Network status</h3>
+                <div className="metric">
+                  <span>Daemon RPC</span>
+                  <strong>127.0.0.1:{network.daemon_rpc_port}</strong>
+                </div>
+                <div className="metric">
+                  <span>Incoming peers</span>
+                  <strong>{formatNumber(daemon.incoming_connections)}</strong>
+                </div>
+                <div className="metric">
+                  <span>Outgoing peers</span>
+                  <strong>{formatNumber(daemon.outgoing_connections)}</strong>
+                </div>
+                <div className="metric">
+                  <span>Target block time</span>
+                  <strong>{daemon.target_seconds == null ? "—" : `${daemon.target_seconds}s`}</strong>
+                </div>
+                <button className="secondary full" onClick={refreshServices} disabled={checking}>
+                  {checking ? "Refreshing…" : "Refresh"}
+                </button>
+              </article>
+
+              <article className="card wide">
+                <p className="eyebrow">ALPHA SECURITY MODEL</p>
+                <h3>Visible processes. Explicit choices.</h3>
+                <div className="principles">
+                  <div><strong>No miner included</strong><span>The installer contains no mining engine.</span></div>
+                  <div><strong>No AV bypasses</strong><span>No Defender exclusions or disable-security instructions.</span></div>
+                  <div><strong>No packers</strong><span>No UPX or executable obfuscation in official builds.</span></div>
+                  <div><strong>Local secrets</strong><span>Seeds and passwords are not written to application logs.</span></div>
+                </div>
+              </article>
+            </section>
+          </>
+        )}
+
+        {view === "wallet" && (
+          <section className="page-card">
+            <p className="eyebrow">WALLET MANAGEMENT</p>
+            <h2>{wallet ? "Wallet is open" : "Create, open or restore"}</h2>
+
+            {wallet ? (
+              <>
+                <div className="balance-hero">{formatFeel(wallet.balance)}</div>
+                <div className="address-box">{wallet.address}</div>
+                <button className="secondary danger" onClick={handleCloseWallet}>Close wallet</button>
+              </>
+            ) : (
+              <div className="form-grid">
+                <label>
+                  <span>Wallet name</span>
+                  <input
+                    value={walletName}
+                    onChange={(event) => setWalletName(event.target.value)}
+                    placeholder="my-feel-wallet"
+                    autoComplete="off"
+                  />
+                </label>
+                <label>
+                  <span>Password</span>
+                  <input
+                    type="password"
+                    value={walletPassword}
+                    onChange={(event) => setWalletPassword(event.target.value)}
+                    placeholder="Wallet password"
+                    autoComplete="new-password"
+                  />
+                </label>
+
+                <div className="wallet-actions">
+                  <button className="primary" onClick={() => handleWalletAction("create")}>
+                    Create new wallet
+                  </button>
+                  <button className="secondary" onClick={() => handleWalletAction("open")}>
+                    Open existing wallet
+                  </button>
+                </div>
+
+                <div className="restore-panel">
+                  <p className="eyebrow">RESTORE FROM RECOVERY SEED</p>
+                  <label>
+                    <span>Recovery seed</span>
+                    <textarea
+                      value={seed}
+                      onChange={(event) => setSeed(event.target.value)}
+                      placeholder="Enter your recovery seed locally"
+                      rows={4}
+                      spellCheck={false}
+                    />
+                  </label>
+                  <label className="small-field">
+                    <span>Restore height</span>
+                    <input
+                      inputMode="numeric"
+                      value={restoreHeight}
+                      onChange={(event) => setRestoreHeight(event.target.value.replace(/\D/g, ""))}
+                    />
+                  </label>
+                  <button className="secondary" onClick={() => handleWalletAction("restore")}>
+                    Restore wallet
+                  </button>
+                </div>
               </div>
-              <span className={daemon.reachable ? "dot online-dot" : "dot"} />
+            )}
+
+            {walletMessage && <div className="form-message">{walletMessage}</div>}
+          </section>
+        )}
+
+        {view === "send" && wallet && (
+          <section className="page-card">
+            <p className="eyebrow">SEND FEEL</p>
+            <h2>Create transaction</h2>
+            <div className="balance-line">
+              <span>Available</span>
+              <strong>{formatFeel(wallet.unlocked_balance)}</strong>
             </div>
+            <form className="send-form" onSubmit={handleSend}>
+              <label>
+                <span>Destination address</span>
+                <textarea
+                  value={sendAddress}
+                  onChange={(event) => setSendAddress(event.target.value)}
+                  placeholder="Feelcoin address"
+                  rows={3}
+                  spellCheck={false}
+                  required
+                />
+              </label>
+              <label>
+                <span>Amount (FEEL)</span>
+                <input
+                  value={sendAmount}
+                  onChange={(event) => setSendAmount(event.target.value)}
+                  placeholder="0.000000000000"
+                  inputMode="decimal"
+                  required
+                />
+              </label>
+              <button className="primary" type="submit">Review & send</button>
+            </form>
+            {sendResult && <div className="form-message selectable">{sendResult}</div>}
+          </section>
+        )}
 
-            <div className="metric">
-              <span>RPC endpoint</span>
-              <strong>
-                {daemon.host}:{network.daemon_rpc_port}
-              </strong>
-            </div>
-
-            <div className="metric">
-              <span>Daemon</span>
-              <strong>{daemon.reachable ? "Reachable" : "Not detected"}</strong>
-            </div>
-
-            <div className="metric">
-              <span>Incoming peers</span>
-              <strong>{formatNumber(daemon.incoming_connections)}</strong>
-            </div>
-
-            <div className="metric">
-              <span>Outgoing peers</span>
-              <strong>{formatNumber(daemon.outgoing_connections)}</strong>
-            </div>
-
-            {daemon.error && <p className="error-note">{daemon.error}</p>}
-
-            <button className="primary" onClick={refreshServices} disabled={checking}>
-              {checking ? "Checking…" : "Refresh local services"}
+        {view === "receive" && wallet && (
+          <section className="page-card">
+            <p className="eyebrow">RECEIVE FEEL</p>
+            <h2>Your primary address</h2>
+            <p className="subtle">Share this address to receive FEEL. Your private keys never leave this computer.</p>
+            <div className="receive-address selectable">{wallet.address}</div>
+            <button
+              className="primary compact"
+              onClick={() => navigator.clipboard.writeText(wallet.address)}
+            >
+              Copy address
             </button>
-          </article>
+          </section>
+        )}
 
-          <article className="card">
-            <div className="card-heading">
+        {view === "transactions" && wallet && (
+          <section className="page-card">
+            <div className="page-heading-row">
               <div>
-                <p className="eyebrow">LOCAL WALLET SERVICE</p>
-                <h3>Wallet RPC</h3>
+                <p className="eyebrow">TRANSACTIONS</p>
+                <h2>Wallet activity</h2>
               </div>
-              <span className={walletRpc.reachable ? "dot online-dot" : "dot"} />
+              <button className="secondary compact" onClick={loadHistory}>Refresh</button>
             </div>
 
-            <div className="metric">
-              <span>RPC endpoint</span>
-              <strong>
-                {walletRpc.host}:{network.wallet_rpc_port}
-              </strong>
-            </div>
+            {transferRows.length === 0 ? (
+              <div className="empty-state">No wallet transactions to show yet.</div>
+            ) : (
+              <div className="tx-list">
+                {transferRows.slice(0, 100).map((entry, index) => (
+                  <div className="tx-row" key={`${entry.txid ?? entry.tx_hash ?? index}-${index}`}>
+                    <div>
+                      <strong>{String(entry.group).toUpperCase()}</strong>
+                      <span>{entry.txid ?? entry.tx_hash ?? "Transaction"}</span>
+                    </div>
+                    <div>
+                      <strong>{formatFeel(entry.amount)}</strong>
+                      <span>Height {formatNumber(entry.height)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
-            <div className="metric">
-              <span>Status</span>
-              <strong>{walletRpc.reachable ? "Ready" : "Not detected"}</strong>
+        {view === "node" && (
+          <section className="page-card">
+            <p className="eyebrow">LOCAL FULL NODE</p>
+            <h2>Feelcoin node</h2>
+            <div className="node-summary">
+              <div><span>Status</span><strong>{daemon.reachable ? "Online" : "Starting"}</strong></div>
+              <div><span>Block height</span><strong>{formatNumber(daemon.height)}</strong></div>
+              <div><span>Target height</span><strong>{formatNumber(daemon.target_height)}</strong></div>
+              <div><span>Difficulty</span><strong>{formatNumber(daemon.difficulty)}</strong></div>
+              <div><span>Peers</span><strong>{daemon.reachable ? totalConnections : "—"}</strong></div>
+              <div><span>P2P port</span><strong>{network.p2p_port}</strong></div>
+              <div><span>Daemon RPC</span><strong>{network.daemon_rpc_port}</strong></div>
+              <div><span>Wallet RPC</span><strong>{network.wallet_rpc_port}</strong></div>
             </div>
-
-            <div className="metric">
-              <span>RPC version</span>
-              <strong>{formatNumber(walletRpc.version)}</strong>
-            </div>
-
             <p className="service-note">
-              This probe only checks the local Feelcoin wallet RPC service. It
-              does not request a seed, private key, password, or wallet file.
+              Feelcoin Desktop uses the bundled official daemon, which discovers the Feelcoin network through the official bootstrap infrastructure and P2P peers.
             </p>
-          </article>
+            <button className="secondary compact" onClick={startServices}>Restart / retry services</button>
+          </section>
+        )}
 
-          <article className="card">
-            <p className="eyebrow">NETWORK DEFAULTS</p>
-            <h3>Feelcoin ports</h3>
-            <div className="ports">
-              <div>
-                <span>P2P</span>
-                <strong>{network.p2p_port}</strong>
-              </div>
-              <div>
-                <span>Daemon RPC</span>
-                <strong>{network.daemon_rpc_port}</strong>
-              </div>
-              <div>
-                <span>ZMQ</span>
-                <strong>{network.zmq_port}</strong>
-              </div>
-              <div>
-                <span>Wallet RPC</span>
-                <strong>{network.wallet_rpc_port}</strong>
-              </div>
-            </div>
-
-            <div className="node-details">
-              <span>Reported status</span>
-              <strong>{daemon.status ?? "—"}</strong>
-              <span>Daemon version</span>
-              <strong>{daemon.version ?? "—"}</strong>
-              <span>Difficulty</span>
-              <strong>{formatNumber(daemon.difficulty)}</strong>
-              <span>Target block time</span>
-              <strong>
-                {daemon.target_seconds === null ? "—" : `${daemon.target_seconds}s`}
-              </strong>
-            </div>
-          </article>
-
-          <article className="card">
-            <p className="eyebrow">NEXT MILESTONE</p>
-            <h3>Open a real wallet</h3>
-            <p className="service-note">
-              The next step is controlled wallet RPC lifecycle management:
-              create, open, restore, lock, send, receive, and transaction history.
-              Wallet secrets will stay local and will never be written to logs.
-            </p>
-            <div className="coming-soon">Wallet controls are under development</div>
-          </article>
-
-          <article className="card wide">
-            <p className="eyebrow">SECURITY MODEL</p>
-            <h3>Visible processes. Explicit choices.</h3>
-            <div className="principles">
-              <div>
-                <strong>No silent mining</strong>
-                <span>The desktop wallet does not contain or launch a miner.</span>
-              </div>
-              <div>
-                <strong>No antivirus bypasses</strong>
-                <span>
-                  We do not ask users to disable Defender or add broad exclusions.
-                </span>
-              </div>
-              <div>
-                <strong>No packers or obfuscation</strong>
-                <span>Official builds remain reviewable and straightforward.</span>
-              </div>
-              <div>
-                <strong>Release verification</strong>
-                <span>Official releases will publish SHA-256 checksums.</span>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <footer>
-          Feelcoin Desktop v0.1 development scaffold · Community-first · Open source
-        </footer>
+        <footer>Feelcoin Desktop Alpha · Windows + Linux · In Feels We Trust.</footer>
       </section>
     </main>
   );
