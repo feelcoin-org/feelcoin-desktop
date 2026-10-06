@@ -60,8 +60,12 @@ jobs:
       - name: Generate application icons
         run: npx tauri icon public/feelcoin-logo.png --fit contain
 
-      - name: Build Linux installers
-        run: npx tauri build --bundles deb,appimage
+      - name: Build Linux DEB
+        run: npx tauri build --bundles deb
+
+      - name: Build Linux AppImage
+        continue-on-error: true
+        run: npx tauri build --bundles appimage
 
       - name: Create Linux checksums
         shell: bash
@@ -144,7 +148,19 @@ jobs:
 
       - name: Build Windows installer
         shell: pwsh
-        run: npx tauri build --bundles nsis
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "NSIS packaging attempt $attempt of $maxAttempts"
+            npx tauri build --bundles nsis
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ($attempt -eq $maxAttempts) {
+              throw "Windows NSIS packaging failed after $maxAttempts attempts."
+            }
+            Start-Sleep -Seconds 15
+          }
 
       - name: Create Windows checksums
         shell: pwsh
