@@ -58,7 +58,7 @@ jobs:
           sha256sum src-tauri/resources/bin/feelcoind src-tauri/resources/bin/feelcoin-wallet-rpc
 
       - name: Generate application icons
-        run: npx tauri icon public/feelcoin-logo.png
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
 
       - name: Build Linux installers
         run: npx tauri build --bundles deb,appimage
@@ -113,8 +113,9 @@ jobs:
         shell: msys2 {0}
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch v0.2.1 https://github.com/feelcoin-org/feelcoin.git core
+          git clone --depth 1 --branch v0.2.1 --recurse-submodules https://github.com/feelcoin-org/feelcoin.git core
           cd core
+          git submodule update --init --recursive --force
           make release-static-win64 -j2
           test -f build/release/bin/feelcoind.exe
           test -f build/release/bin/feelcoin-wallet-rpc.exe
@@ -137,7 +138,7 @@ jobs:
 
       - name: Generate application icons
         shell: pwsh
-        run: npx tauri icon public/feelcoin-logo.png
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
 
       - name: Build Windows installer
         shell: pwsh
