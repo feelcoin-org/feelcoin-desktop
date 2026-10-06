@@ -59,7 +59,7 @@ function App() {
     <main className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="coin-mark">F</div>
+          <img className="coin-mark" src="/feelcoin-logo.png" alt="Feelcoin logo" />
           <div>
             <strong>FEELCOIN</strong>
             <span>DESKTOP</span>
@@ -111,7 +111,7 @@ function App() {
               hidden processes or bundled mining software.
             </p>
           </div>
-          <div className="hero-symbol">F</div>
+          <img className="hero-symbol" src="/feelcoin-logo.png" alt="Feelcoin" />
         </section>
 
         <section className="grid">
