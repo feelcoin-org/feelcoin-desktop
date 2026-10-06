@@ -75,6 +75,22 @@ struct LocalServiceStart {
     wallet_dir: String,
 }
 
+
+#[derive(Serialize)]
+struct WalletSummary {
+    balance: u64,
+    unlocked_balance: u64,
+    address: String,
+    height: u64,
+}
+
+#[derive(Serialize)]
+struct SendResult {
+    tx_hash: String,
+    fee: u64,
+    amount: u64,
+}
+
 #[tauri::command]
 fn network_defaults() -> NetworkDefaults {
     NetworkDefaults {
@@ -394,6 +410,163 @@ fn daemon_info() -> DaemonInfo {
     }
 }
 
+fn validate_wallet_name(filename: &str) -> Result<(), String> {
+    if filename.is_empty() || filename.len() > 64 {
+        return Err("Wallet name must contain between 1 and 64 characters".to_string());
+    }
+
+    if filename == "." || filename == ".." {
+        return Err("Invalid wallet name".to_string());
+    }
+
+    if !filename
+        .chars()
+        .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_' | '.'))
+    {
+        return Err(
+            "Wallet name may only contain letters, numbers, dots, hyphens and underscores"
+                .to_string(),
+        );
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn create_wallet(filename: String, password: String) -> Result<(), String> {
+    validate_wallet_name(&filename)?;
+    call_wallet_rpc_with_params(
+        "create_wallet",
+        json!({
+            "filename": filename,
+            "password": password,
+            "language": "English"
+        }),
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+fn open_wallet(filename: String, password: String) -> Result<(), String> {
+    validate_wallet_name(&filename)?;
+    call_wallet_rpc_with_params(
+        "open_wallet",
+        json!({
+            "filename": filename,
+            "password": password
+        }),
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+fn restore_wallet(
+    filename: String,
+    password: String,
+    seed: String,
+    restore_height: Option<u64>,
+) -> Result<(), String> {
+    validate_wallet_name(&filename)?;
+
+    if seed.split_whitespace().count() < 12 {
+        return Err("Recovery seed appears incomplete".to_string());
+    }
+
+    call_wallet_rpc_with_params(
+        "restore_deterministic_wallet",
+        json!({
+            "restore_height": restore_height.unwrap_or(0),
+            "filename": filename,
+            "seed": seed,
+            "seed_offset": "",
+            "password": password,
+            "language": "English",
+            "autosave_current": true
+        }),
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+fn close_wallet() -> Result<(), String> {
+    call_wallet_rpc_with_params("close_wallet", json!({"autosave_current": true}))?;
+    Ok(())
+}
+
+#[tauri::command]
+fn wallet_summary() -> Result<WalletSummary, String> {
+    let balance = call_wallet_rpc_with_params("get_balance", json!({"account_index": 0}))?;
+    let address = call_wallet_rpc_with_params("get_address", json!({"account_index": 0}))?;
+    let height = call_wallet_rpc("get_height")?;
+
+    Ok(WalletSummary {
+        balance: balance.get("balance").and_then(Value::as_u64).unwrap_or(0),
+        unlocked_balance: balance
+            .get("unlocked_balance")
+            .and_then(Value::as_u64)
+            .unwrap_or(0),
+        address: address
+            .get("address")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        height: height.get("height").and_then(Value::as_u64).unwrap_or(0),
+    })
+}
+
+#[tauri::command]
+fn send_feel(address: String, amount_atomic: String) -> Result<SendResult, String> {
+    if address.trim().is_empty() {
+        return Err("Destination address is required".to_string());
+    }
+
+    let amount = amount_atomic
+        .parse::<u64>()
+        .map_err(|_| "Invalid amount".to_string())?;
+
+    if amount == 0 {
+        return Err("Amount must be greater than zero".to_string());
+    }
+
+    let result = call_wallet_rpc_with_params(
+        "transfer",
+        json!({
+            "destinations": [{
+                "amount": amount,
+                "address": address
+            }],
+            "account_index": 0,
+            "priority": 0,
+            "get_tx_key": true
+        }),
+    )?;
+
+    Ok(SendResult {
+        tx_hash: result
+            .get("tx_hash")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .to_string(),
+        fee: result.get("fee").and_then(Value::as_u64).unwrap_or(0),
+        amount,
+    })
+}
+
+#[tauri::command]
+fn transaction_history() -> Result<Value, String> {
+    call_wallet_rpc_with_params(
+        "get_transfers",
+        json!({
+            "in": true,
+            "out": true,
+            "pending": true,
+            "failed": true,
+            "pool": true,
+            "account_index": 0
+        }),
+    )
+}
+
 #[tauri::command]
 fn wallet_rpc_status() -> WalletRpcStatus {
     match call_wallet_rpc("get_version") {
@@ -425,7 +598,14 @@ pub fn run() {
             start_local_services,
             stop_local_services,
             daemon_info,
-            wallet_rpc_status
+            wallet_rpc_status,
+            create_wallet,
+            open_wallet,
+            restore_wallet,
+            close_wallet,
+            wallet_summary,
+            send_feel,
+            transaction_history
         ])
         .build(tauri::generate_context!())
         .expect("error while building Feelcoin Desktop");
