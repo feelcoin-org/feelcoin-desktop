@@ -8,10 +8,20 @@ type NetworkDefaults = {
   wallet_rpc_port: number;
 };
 
-type RpcStatus = {
+type DaemonInfo = {
   reachable: boolean;
   host: string;
   port: number;
+  height: number | null;
+  target_height: number | null;
+  difficulty: number | null;
+  target_seconds: number | null;
+  incoming_connections: number | null;
+  outgoing_connections: number | null;
+  synchronized: boolean | null;
+  status: string | null;
+  version: string | null;
+  error: string | null;
 };
 
 const FALLBACK_NETWORK: NetworkDefaults = {
@@ -21,39 +31,56 @@ const FALLBACK_NETWORK: NetworkDefaults = {
   wallet_rpc_port: 35784,
 };
 
+const EMPTY_DAEMON: DaemonInfo = {
+  reachable: false,
+  host: "127.0.0.1",
+  port: 35781,
+  height: null,
+  target_height: null,
+  difficulty: null,
+  target_seconds: null,
+  incoming_connections: null,
+  outgoing_connections: null,
+  synchronized: null,
+  status: null,
+  version: null,
+  error: null,
+};
+
+function formatNumber(value: number | null) {
+  return value === null ? "—" : new Intl.NumberFormat().format(value);
+}
+
 function App() {
   const [network, setNetwork] = useState<NetworkDefaults>(FALLBACK_NETWORK);
-  const [rpc, setRpc] = useState<RpcStatus>({
-    reachable: false,
-    host: "127.0.0.1",
-    port: FALLBACK_NETWORK.daemon_rpc_port,
-  });
+  const [daemon, setDaemon] = useState<DaemonInfo>(EMPTY_DAEMON);
   const [checking, setChecking] = useState(false);
 
-  useEffect(() => {
-    invoke<NetworkDefaults>("network_defaults")
-      .then(setNetwork)
-      .catch(() => setNetwork(FALLBACK_NETWORK));
-  }, []);
-
-  async function checkDaemon() {
+  async function refreshDaemon() {
     setChecking(true);
     try {
-      const result = await invoke<RpcStatus>("check_daemon_rpc", {
-        host: "127.0.0.1",
-        port: network.daemon_rpc_port,
-      });
-      setRpc(result);
+      const result = await invoke<DaemonInfo>("daemon_info");
+      setDaemon(result);
     } catch {
-      setRpc({
-        reachable: false,
-        host: "127.0.0.1",
-        port: network.daemon_rpc_port,
+      setDaemon({
+        ...EMPTY_DAEMON,
+        error: "Unable to query the local desktop backend.",
       });
     } finally {
       setChecking(false);
     }
   }
+
+  useEffect(() => {
+    invoke<NetworkDefaults>("network_defaults")
+      .then(setNetwork)
+      .catch(() => setNetwork(FALLBACK_NETWORK));
+
+    refreshDaemon();
+  }, []);
+
+  const totalConnections =
+    (daemon.incoming_connections ?? 0) + (daemon.outgoing_connections ?? 0);
 
   return (
     <main className="app-shell">
@@ -68,12 +95,24 @@ function App() {
 
         <nav>
           <button className="nav-item active">Overview</button>
-          <button className="nav-item" disabled>Wallet</button>
-          <button className="nav-item" disabled>Send</button>
-          <button className="nav-item" disabled>Receive</button>
-          <button className="nav-item" disabled>Transactions</button>
-          <button className="nav-item" disabled>Node</button>
-          <button className="nav-item" disabled>Settings</button>
+          <button className="nav-item" disabled>
+            Wallet
+          </button>
+          <button className="nav-item" disabled>
+            Send
+          </button>
+          <button className="nav-item" disabled>
+            Receive
+          </button>
+          <button className="nav-item" disabled>
+            Transactions
+          </button>
+          <button className="nav-item" disabled>
+            Node
+          </button>
+          <button className="nav-item" disabled>
+            Settings
+          </button>
         </nav>
 
         <div className="sidebar-note">
@@ -95,9 +134,9 @@ function App() {
             </p>
           </div>
 
-          <div className={rpc.reachable ? "status online" : "status offline"}>
+          <div className={daemon.reachable ? "status online" : "status offline"}>
             <span />
-            {rpc.reachable ? "Local daemon online" : "Local daemon offline"}
+            {daemon.reachable ? "Local daemon online" : "Local daemon offline"}
           </div>
         </header>
 
@@ -106,12 +145,39 @@ function App() {
             <p className="eyebrow">FEELCOIN NETWORK</p>
             <h2>In Feels We Trust.</h2>
             <p>
-              This early desktop build focuses on a clean wallet experience,
-              explicit local-node control, and a release design that avoids
-              hidden processes or bundled mining software.
+              Feelcoin Desktop is being built around explicit local-node control,
+              transparent processes, and a clean wallet package with no hidden
+              mining component.
             </p>
           </div>
           <img className="hero-symbol" src="/feelcoin-logo.png" alt="Feelcoin" />
+        </section>
+
+        <section className="network-strip">
+          <div>
+            <span>BLOCK HEIGHT</span>
+            <strong>{formatNumber(daemon.height)}</strong>
+          </div>
+          <div>
+            <span>CONNECTIONS</span>
+            <strong>{daemon.reachable ? formatNumber(totalConnections) : "—"}</strong>
+          </div>
+          <div>
+            <span>TARGET</span>
+            <strong>
+              {daemon.target_seconds === null ? "—" : `${daemon.target_seconds}s`}
+            </strong>
+          </div>
+          <div>
+            <span>SYNC</span>
+            <strong>
+              {daemon.synchronized === null
+                ? "—"
+                : daemon.synchronized
+                  ? "Synced"
+                  : "Syncing"}
+            </strong>
+          </div>
         </section>
 
         <section className="grid">
@@ -119,23 +185,35 @@ function App() {
             <div className="card-heading">
               <div>
                 <p className="eyebrow">LOCAL NODE</p>
-                <h3>Daemon connection</h3>
+                <h3>Daemon status</h3>
               </div>
-              <span className={rpc.reachable ? "dot online-dot" : "dot"} />
+              <span className={daemon.reachable ? "dot online-dot" : "dot"} />
             </div>
 
             <div className="metric">
               <span>RPC endpoint</span>
-              <strong>{rpc.host}:{network.daemon_rpc_port}</strong>
+              <strong>{daemon.host}:{network.daemon_rpc_port}</strong>
             </div>
 
             <div className="metric">
-              <span>Status</span>
-              <strong>{rpc.reachable ? "Reachable" : "Not detected"}</strong>
+              <span>Daemon</span>
+              <strong>{daemon.reachable ? "Reachable" : "Not detected"}</strong>
             </div>
 
-            <button className="primary" onClick={checkDaemon} disabled={checking}>
-              {checking ? "Checking…" : "Check local daemon"}
+            <div className="metric">
+              <span>Incoming peers</span>
+              <strong>{formatNumber(daemon.incoming_connections)}</strong>
+            </div>
+
+            <div className="metric">
+              <span>Outgoing peers</span>
+              <strong>{formatNumber(daemon.outgoing_connections)}</strong>
+            </div>
+
+            {daemon.error && <p className="error-note">{daemon.error}</p>}
+
+            <button className="primary" onClick={refreshDaemon} disabled={checking}>
+              {checking ? "Checking…" : "Refresh daemon status"}
             </button>
           </article>
 
@@ -143,10 +221,31 @@ function App() {
             <p className="eyebrow">NETWORK DEFAULTS</p>
             <h3>Feelcoin ports</h3>
             <div className="ports">
-              <div><span>P2P</span><strong>{network.p2p_port}</strong></div>
-              <div><span>Daemon RPC</span><strong>{network.daemon_rpc_port}</strong></div>
-              <div><span>ZMQ</span><strong>{network.zmq_port}</strong></div>
-              <div><span>Wallet RPC</span><strong>{network.wallet_rpc_port}</strong></div>
+              <div>
+                <span>P2P</span>
+                <strong>{network.p2p_port}</strong>
+              </div>
+              <div>
+                <span>Daemon RPC</span>
+                <strong>{network.daemon_rpc_port}</strong>
+              </div>
+              <div>
+                <span>ZMQ</span>
+                <strong>{network.zmq_port}</strong>
+              </div>
+              <div>
+                <span>Wallet RPC</span>
+                <strong>{network.wallet_rpc_port}</strong>
+              </div>
+            </div>
+
+            <div className="node-details">
+              <span>Reported status</span>
+              <strong>{daemon.status ?? "—"}</strong>
+              <span>Daemon version</span>
+              <strong>{daemon.version ?? "—"}</strong>
+              <span>Difficulty</span>
+              <strong>{formatNumber(daemon.difficulty)}</strong>
             </div>
           </article>
 
@@ -160,7 +259,9 @@ function App() {
               </div>
               <div>
                 <strong>No antivirus bypasses</strong>
-                <span>We do not ask users to disable Defender or add broad exclusions.</span>
+                <span>
+                  We do not ask users to disable Defender or add broad exclusions.
+                </span>
               </div>
               <div>
                 <strong>No packers or obfuscation</strong>
