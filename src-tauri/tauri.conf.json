@@ -31,6 +31,9 @@
     "targets": "all",
     "category": "Finance",
     "shortDescription": "Official Feelcoin desktop wallet",
-    "longDescription": "Official open-source desktop wallet for Feelcoin with local daemon support and transparent network controls."
+    "longDescription": "Self-contained Feelcoin desktop wallet with local daemon and wallet RPC support.",
+    "resources": [
+      "resources/bin/*"
+    ]
   }
 }
