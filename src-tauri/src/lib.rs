@@ -74,7 +74,8 @@ fn local_socket(port: u16) -> Option<SocketAddr> {
 }
 
 fn open_local_stream(port: u16) -> Result<TcpStream, String> {
-    let address = local_socket(port).ok_or_else(|| "Unable to resolve local service".to_string())?;
+    let address =
+        local_socket(port).ok_or_else(|| "Unable to resolve local service".to_string())?;
     let stream = TcpStream::connect_timeout(&address, Duration::from_millis(900))
         .map_err(|_| "Local service is not reachable".to_string())?;
 
