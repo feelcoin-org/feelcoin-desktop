@@ -59,7 +59,7 @@ npm run tauri dev
 
 Core protocol: https://github.com/feelcoin-org/feelcoin
 
-Official website: https://feelcoin.online
+Official website: https://feelcoin.org
 
 ## License
 
