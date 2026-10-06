@@ -86,7 +86,8 @@ fn check_daemon_rpc() -> RpcStatus {
 }
 
 fn fetch_local_daemon_info() -> Result<GetInfoResponse, String> {
-    let address = local_daemon_socket().ok_or_else(|| "Unable to resolve local daemon".to_string())?;
+    let address =
+        local_daemon_socket().ok_or_else(|| "Unable to resolve local daemon".to_string())?;
     let mut stream = TcpStream::connect_timeout(&address, Duration::from_millis(900))
         .map_err(|_| "Local Feelcoin daemon is not reachable".to_string())?;
 
