@@ -433,3 +433,21 @@ footer {
   font-size: 11px;
   line-height: 1.4;
 }
+
+.service-note {
+  margin: 12px 0 0;
+  color: #797979;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.coming-soon {
+  margin-top: 18px;
+  padding: 13px 14px;
+  border: 1px dashed rgba(225, 184, 74, .22);
+  border-radius: 10px;
+  color: #b9a66e;
+  background: rgba(225, 184, 74, .035);
+  font-size: 12px;
+  text-align: center;
+}
