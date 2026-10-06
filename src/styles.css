@@ -369,3 +369,67 @@ footer {
     flex-basis: 100px;
   }
 }
+
+.network-strip {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  background: rgba(255,255,255,.07);
+}
+
+.network-strip div {
+  padding: 17px 19px;
+  background: #0b0b0b;
+}
+
+.network-strip span,
+.network-strip strong {
+  display: block;
+}
+
+.network-strip span {
+  color: #656565;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.network-strip strong {
+  margin-top: 5px;
+  color: #e6d28b;
+  font-size: 18px;
+}
+
+.node-details {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 9px 16px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255,255,255,.055);
+  font-size: 12px;
+}
+
+.node-details span {
+  color: #6f6f6f;
+}
+
+.node-details strong {
+  color: #cfcfcf;
+  text-align: right;
+}
+
+.error-note {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(180, 85, 85, .18);
+  border-radius: 9px;
+  color: #b98d8d;
+  background: rgba(160, 70, 70, .05);
+  font-size: 11px;
+  line-height: 1.4;
+}
