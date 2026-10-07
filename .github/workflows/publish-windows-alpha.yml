@@ -1,0 +1,58 @@
+name: Publish verified Windows Alpha
+
+on:
+  push:
+    branches: [alpha-dev]
+    paths:
+      - .github/workflows/publish-windows-alpha.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-windows:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download successful Windows build from Alpha Builds #11
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p incoming
+          gh run download 37687866565 --repo "${{ github.repository }}" --name Feelcoin-Desktop-Alpha-Windows-x64 --dir incoming
+          ls -lah incoming
+
+      - name: Verify the installer integrity
+        run: |
+          set -euo pipefail
+          cd incoming
+          sha256sum --check SHA256SUMS.txt
+          test -f "Feelcoin Desktop_0.1.0_x64-setup.exe"
+          test "$(find . -maxdepth 1 -type f -name '*.exe' | wc -l)" -eq 1
+          mkdir -p ../publish
+          cp "Feelcoin Desktop_0.1.0_x64-setup.exe" "../publish/Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe"
+          cd ../publish
+          sha256sum Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe
+
+      - name: Preserve Linux checksums and include Windows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download v0.1.0-alpha --repo "${{ github.repository }}" --pattern SHA256SUMS.txt --dir publish
+          cd publish
+          # Keep existing Linux checksum entries; normalize Windows installer name.
+          sed -i '/[Ww]indows/d' SHA256SUMS.txt
+          sha256sum Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe >> SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Attach Windows installer and updated checksums to existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload v0.1.0-alpha             publish/Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe             publish/SHA256SUMS.txt             --clobber --repo "${{ github.repository }}"
+          gh release edit v0.1.0-alpha --repo "${{ github.repository }}"             --title "Feelcoin Desktop Wallet v0.1.0 Alpha — Windows & Linux"
+          gh release view v0.1.0-alpha --repo "${{ github.repository }}" --json assets,name,url
