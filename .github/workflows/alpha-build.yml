@@ -64,7 +64,8 @@ jobs:
         run: npx tauri build --bundles deb
 
       - name: Build Linux AppImage
-        continue-on-error: true
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
         run: npx tauri build --bundles appimage
 
       - name: Create Linux checksums
@@ -76,7 +77,10 @@ jobs:
             \( -name "*.deb" -o -name "*.AppImage" \) \
             -exec cp {} alpha-output/ \;
           cd alpha-output
-          sha256sum * > SHA256SUMS.txt
+          test -n "$(find . -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$(find . -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          sha256sum *.deb *.AppImage > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Upload Linux Alpha
@@ -175,6 +179,12 @@ jobs:
             "$hash  $($file.Name)"
           }
           $lines | Set-Content -Encoding ascii "alpha-output/SHA256SUMS.txt"
+          foreach ($file in $files) {
+            $expected = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLower()
+            if (-not (Select-String -Path "alpha-output/SHA256SUMS.txt" -SimpleMatch "$expected  $($file.Name)")) {
+              throw "Checksum verification failed for $($file.Name)"
+            }
+          }
           Get-Content "alpha-output/SHA256SUMS.txt"
 
       - name: Upload Windows Alpha
