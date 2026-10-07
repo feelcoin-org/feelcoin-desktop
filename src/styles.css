@@ -754,3 +754,153 @@ textarea:focus {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Wallet recovery backup */
+
+.recovery-screen {
+  max-width: 980px;
+}
+
+.recovery-warning {
+  margin: 4px 0 22px;
+  padding: 16px 18px;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(205, 106, 76, .28);
+  border-radius: 12px;
+  background: rgba(170, 65, 45, .07);
+}
+
+.recovery-warning strong {
+  color: #e0a18d;
+  font-size: 13px;
+}
+
+.recovery-warning span {
+  color: #9b7770;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.secret-section {
+  padding: 18px;
+  border: 1px solid rgba(229, 190, 82, .12);
+  border-radius: 12px;
+  background: rgba(229, 190, 82, .025);
+}
+
+.secret-heading {
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.secret-heading strong,
+.secret-label {
+  display: block;
+}
+
+.secret-heading strong {
+  margin-top: 4px;
+  color: #d7c580;
+  font-size: 12px;
+}
+
+.secret-label {
+  color: #777;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.secret-box {
+  padding: 14px;
+  overflow-wrap: anywhere;
+  border: 1px solid rgba(255,255,255,.065);
+  border-radius: 9px;
+  color: #d7d0b4;
+  background: rgba(0,0,0,.22);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.seed-box {
+  color: #ead78e;
+  font-size: 13px;
+  line-height: 1.9;
+}
+
+.recovery-key-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.backup-confirm {
+  margin-top: 20px;
+  padding: 15px 16px;
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: flex-start;
+  gap: 11px !important;
+  border: 1px solid rgba(229, 190, 82, .12);
+  border-radius: 10px;
+  background: rgba(229, 190, 82, .025);
+  cursor: pointer;
+}
+
+.backup-confirm input {
+  width: auto;
+  margin: 3px 0 0;
+  flex: 0 0 auto;
+  accent-color: #d2aa42;
+}
+
+.backup-confirm span {
+  color: #aaa !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0 !important;
+  line-height: 1.55;
+}
+
+.recovery-continue {
+  max-width: 360px;
+}
+
+button:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: wait;
+  opacity: .62;
+}
+
+@media (max-width: 1100px) {
+  .recovery-key-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ----------------------------------------------------------
+   Feelcoin Desktop action feedback
+   ---------------------------------------------------------- */
+
+.success-banner {
+  border: 1px solid rgba(88, 169, 92, .22);
+  color: #bfe1bd;
+  background: rgba(88, 169, 92, .065);
+}
+
+.success-banner strong {
+  color: #cbe8c9;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: .68;
+}
+

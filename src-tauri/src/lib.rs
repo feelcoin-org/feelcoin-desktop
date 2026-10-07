@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
-use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::Manager;
 
 const LOCAL_DAEMON_HOST: &str = "127.0.0.1";
@@ -75,7 +74,6 @@ struct LocalServiceStart {
     wallet_dir: String,
 }
 
-
 #[derive(Serialize)]
 struct WalletSummary {
     balance: u64,
@@ -131,24 +129,120 @@ fn open_local_stream(port: u16) -> Result<TcpStream, String> {
 }
 
 fn read_http_json(mut stream: TcpStream, request: &[u8]) -> Result<Value, String> {
+    use std::io::{ErrorKind, Read, Write};
+
     stream
         .write_all(request)
         .map_err(|error| format!("Unable to write local RPC request: {error}"))?;
 
-    let mut response = Vec::new();
-    stream
-        .read_to_end(&mut response)
-        .map_err(|error| format!("Unable to read local RPC response: {error}"))?;
+    // A single socket timeout must not abort a wallet operation.
+    // create/open/restore/refresh can legitimately keep wallet-rpc busy.
+    //
+    // The socket timeout is therefore only a polling interval. The real
+    // timeout is this overall deadline.
+    const RPC_DEADLINE: Duration = Duration::from_secs(30);
+    let deadline = Instant::now() + RPC_DEADLINE;
 
-    let response = String::from_utf8(response)
-        .map_err(|_| "Local RPC returned a non-UTF-8 response".to_string())?;
-    let (headers, body) = response
-        .split_once("\r\n\r\n")
-        .ok_or_else(|| "Local RPC returned an invalid HTTP response".to_string())?;
+    let mut response = Vec::new();
+    let mut buffer = [0u8; 8192];
+    let mut header_end: Option<usize> = None;
+    let mut content_length: Option<usize> = None;
+
+    loop {
+        if Instant::now() >= deadline {
+            return Err(
+                "Local RPC did not respond within 30 seconds. The wallet may still be refreshing."
+                    .to_string(),
+            );
+        }
+
+        match stream.read(&mut buffer) {
+            Ok(0) => {
+                // Peer closed the connection. This is valid only if we have
+                // already received a complete response body.
+                if let (Some(end), Some(length)) = (header_end, content_length) {
+                    if response.len() >= end + length {
+                        break;
+                    }
+                }
+
+                if header_end.is_some() && content_length.is_none() {
+                    break;
+                }
+
+                return Err(
+                    "Local RPC closed the connection before the complete response was received"
+                        .to_string(),
+                );
+            }
+
+            Ok(count) => {
+                response.extend_from_slice(&buffer[..count]);
+
+                if header_end.is_none() {
+                    if let Some(pos) = response.windows(4).position(|window| window == b"\r\n\r\n")
+                    {
+                        let end = pos + 4;
+                        header_end = Some(end);
+
+                        let headers = String::from_utf8_lossy(&response[..pos]);
+
+                        for line in headers.lines() {
+                            if let Some((name, value)) = line.split_once(':') {
+                                if name.eq_ignore_ascii_case("content-length") {
+                                    content_length = value.trim().parse::<usize>().ok();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if let (Some(end), Some(length)) = (header_end, content_length) {
+                    if response.len() >= end + length {
+                        break;
+                    }
+                }
+            }
+
+            Err(error) if error.kind() == ErrorKind::Interrupted => {
+                continue;
+            }
+
+            Err(error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                // Linux may report the socket timeout as EAGAIN/WouldBlock.
+                // This is not an RPC failure. Keep waiting until our overall
+                // deadline expires.
+                continue;
+            }
+
+            Err(error) => {
+                return Err(format!("Unable to read local RPC response: {error}"));
+            }
+        }
+    }
+
+    let header_end =
+        header_end.ok_or_else(|| "Local RPC returned an invalid HTTP response".to_string())?;
+
+    let headers = String::from_utf8_lossy(&response[..header_end]);
 
     if !headers.starts_with("HTTP/1.1 200") && !headers.starts_with("HTTP/1.0 200") {
         return Err("Local RPC returned a non-success HTTP status".to_string());
     }
+
+    let body_end = match content_length {
+        Some(length) => header_end
+            .checked_add(length)
+            .ok_or_else(|| "Local RPC response length overflow".to_string())?,
+        None => response.len(),
+    };
+
+    if response.len() < body_end {
+        return Err("Local RPC response ended before the complete body was received".to_string());
+    }
+
+    let body = std::str::from_utf8(&response[header_end..body_end])
+        .map_err(|_| "Local RPC returned a non-UTF-8 response body".to_string())?;
 
     serde_json::from_str(body).map_err(|error| format!("Unable to parse local RPC JSON: {error}"))
 }
@@ -245,6 +339,43 @@ fn resolve_bundled_binary(app: &tauri::AppHandle, base: &str) -> Result<PathBuf,
         .ok_or_else(|| format!("Bundled Feelcoin component not found: {name}"))
 }
 
+fn apply_bundled_library_path(
+    command: &mut Command,
+    app: &tauri::AppHandle,
+) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let resource_dir = app
+            .path()
+            .resource_dir()
+            .map_err(|error| format!("Unable to locate Feelcoin resources: {error}"))?;
+
+        let bundled_lib_dir = resource_dir
+            .join("resources")
+            .join("lib");
+
+        if bundled_lib_dir.is_dir() {
+            let inherited = std::env::var("LD_LIBRARY_PATH")
+                .unwrap_or_default();
+
+            let value = if inherited.is_empty() {
+                bundled_lib_dir.to_string_lossy().into_owned()
+            } else {
+                format!(
+                    "{}:{}",
+                    bundled_lib_dir.to_string_lossy(),
+                    inherited
+                )
+            };
+
+            command.env("LD_LIBRARY_PATH", value);
+        }
+    }
+
+    Ok(())
+}
+
+
 fn ensure_directory(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path)
         .map_err(|error| format!("Unable to create {}: {error}", path.display()))
@@ -293,7 +424,14 @@ fn start_local_services(
             let daemon_binary = resolve_bundled_binary(&app, "feelcoind")?;
             let daemon_log = log_dir.join("feelcoind.log");
 
-            let child = Command::new(daemon_binary)
+            let mut daemon_command = Command::new(daemon_binary);
+
+            apply_bundled_library_path(
+                &mut daemon_command,
+                &app,
+            )?;
+
+            let child = daemon_command
                 .arg("--data-dir")
                 .arg(&blockchain_dir)
                 .arg("--p2p-bind-port")
@@ -326,7 +464,14 @@ fn start_local_services(
             let wallet_binary = resolve_bundled_binary(&app, "feelcoin-wallet-rpc")?;
             let wallet_log = log_dir.join("wallet-rpc.log");
 
-            let child = Command::new(wallet_binary)
+            let mut wallet_command = Command::new(wallet_binary);
+
+            apply_bundled_library_path(
+                &mut wallet_command,
+                &app,
+            )?;
+
+            let child = wallet_command
                 .arg("--wallet-dir")
                 .arg(&wallet_dir)
                 .arg("--daemon-address")
@@ -372,6 +517,21 @@ fn stop_child(child: &Mutex<Option<Child>>) {
 fn stop_local_services(state: tauri::State<'_, ProcessState>) {
     stop_child(&state.wallet_rpc);
     stop_child(&state.daemon);
+}
+
+#[tauri::command]
+fn restart_local_services(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, ProcessState>,
+) -> Result<LocalServiceStart, String> {
+    // Wallet RPC first because it depends on the daemon.
+    stop_child(&state.wallet_rpc);
+    stop_child(&state.daemon);
+
+    // Give the OS a short moment to release the RPC listeners.
+    std::thread::sleep(Duration::from_millis(500));
+
+    start_local_services(app, state)
 }
 
 #[tauri::command]
@@ -432,8 +592,31 @@ fn validate_wallet_name(filename: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Serialize)]
+struct WalletRecoveryInfo {
+    mnemonic: String,
+    private_view_key: String,
+    private_spend_key: String,
+}
+
+fn query_wallet_key(key_type: &str) -> Result<String, String> {
+    let result = call_wallet_rpc_with_params(
+        "query_key",
+        json!({
+            "key_type": key_type
+        }),
+    )?;
+
+    result
+        .get("key")
+        .and_then(Value::as_str)
+        .filter(|key| !key.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| format!("Wallet RPC did not return {key_type}"))
+}
+
 #[tauri::command]
-fn create_wallet(filename: String, password: String) -> Result<(), String> {
+fn create_wallet(filename: String, password: String) -> Result<WalletRecoveryInfo, String> {
     validate_wallet_name(&filename)?;
     call_wallet_rpc_with_params(
         "create_wallet",
@@ -443,7 +626,16 @@ fn create_wallet(filename: String, password: String) -> Result<(), String> {
             "language": "English"
         }),
     )?;
-    Ok(())
+
+    let mnemonic = query_wallet_key("mnemonic")?;
+    let private_view_key = query_wallet_key("view_key")?;
+    let private_spend_key = query_wallet_key("spend_key")?;
+
+    Ok(WalletRecoveryInfo {
+        mnemonic,
+        private_view_key,
+        private_spend_key,
+    })
 }
 
 #[tauri::command]
@@ -597,6 +789,7 @@ pub fn run() {
             network_defaults,
             start_local_services,
             stop_local_services,
+            restart_local_services,
             daemon_info,
             wallet_rpc_status,
             create_wallet,

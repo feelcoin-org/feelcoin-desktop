@@ -11,3 +11,10 @@ Thumbs.db
 *.wallet
 *.keys
 wallets/
+
+# Feelcoin Desktop development backups / generated files
+*.pre-*
+src-tauri/gen/
+src-tauri/icons/android/
+src-tauri/icons/ios/
+release-linux-alpha/

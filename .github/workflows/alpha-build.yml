@@ -39,23 +39,41 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Fetch verified Feelcoin Core v0.2.1
+      - name: Verify bundled Feelcoin Core
         shell: bash
         run: |
           set -euo pipefail
-          url="https://github.com/feelcoin-org/feelcoin/releases/download/v0.2.1/feelcoin-v0.2.1-linux-x64.tar.gz"
-          curl -L --fail --retry 3 "$url" -o /tmp/feelcoin-core.tar.gz
-          echo "162b89f887e9df7572447c0d650fd8ed97f494cf97ccc17a9477ae214bf5adb1  /tmp/feelcoin-core.tar.gz" | sha256sum -c -
-          rm -rf /tmp/feelcoin-core
-          mkdir -p /tmp/feelcoin-core src-tauri/resources/bin
-          tar -xzf /tmp/feelcoin-core.tar.gz -C /tmp/feelcoin-core
-          daemon="$(find /tmp/feelcoin-core -type f -name feelcoind -print -quit)"
-          wallet_rpc="$(find /tmp/feelcoin-core -type f -name feelcoin-wallet-rpc -print -quit)"
-          test -n "$daemon"
-          test -n "$wallet_rpc"
-          install -m 0755 "$daemon" src-tauri/resources/bin/feelcoind
-          install -m 0755 "$wallet_rpc" src-tauri/resources/bin/feelcoin-wallet-rpc
-          sha256sum src-tauri/resources/bin/feelcoind src-tauri/resources/bin/feelcoin-wallet-rpc
+
+          daemon="src-tauri/resources/bin/feelcoind"
+          wallet_rpc="src-tauri/resources/bin/feelcoin-wallet-rpc"
+
+          test -f "$daemon"
+          test -f "$wallet_rpc"
+
+          chmod +x "$daemon" "$wallet_rpc"
+
+          echo "=== Feelcoin Core versions ==="
+          "$daemon" --version
+          "$wallet_rpc" --version
+
+          echo
+          echo "=== Runtime dependency check ==="
+
+          if ldd "$daemon" | grep -q "not found"; then
+            echo "ERROR: feelcoind has missing runtime libraries"
+            ldd "$daemon" | grep "not found"
+            exit 1
+          fi
+
+          if ldd "$wallet_rpc" | grep -q "not found"; then
+            echo "ERROR: feelcoin-wallet-rpc has missing runtime libraries"
+            ldd "$wallet_rpc" | grep "not found"
+            exit 1
+          fi
+
+          echo
+          echo "=== Bundled Core SHA256 ==="
+          sha256sum "$daemon" "$wallet_rpc"
 
       - name: Generate application icons
         run: npx tauri icon public/feelcoin-logo.png --fit contain
