@@ -1,69 +1,115 @@
-# Feelcoin Desktop
+# Feelcoin Desktop Wallet 🪙
 
-Official cross-platform desktop wallet for **Feelcoin (FEEL)**.
+**Official Feelcoin (FEEL) desktop wallet — Windows & Linux**
 
-> **Status:** early development / v0.1 scaffold
+**Current release:** [v0.1.0 Alpha (pre-release)](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.1.0-alpha) · **Network:** Feelcoin Mainnet · **Architecture:** x86-64
 
-Feelcoin Desktop is being built as a clean, transparent desktop wallet with local-node support, wallet management, network status, send/receive tools, and a security-first release process.
+> **Alpha warning:** This is experimental software. Back up your recovery seed securely and offline before using the wallet. Test with small amounts. Do not share your seed, wallet password, or private keys.
 
-## Design principles
+## Download
 
-- **Local-first:** use a local Feelcoin daemon when desired.
-- **Transparent:** open source, reviewable configuration, no hidden services.
-- **No bundled miner:** mining software is intentionally kept separate from the wallet.
-- **No silent mining:** Feelcoin Desktop never mines in the background.
-- **AV-friendly release design:** no executable packers, no obfuscation, no Defender exclusions, and published release hashes.
-- **Community-first:** the application should make it easier to use and strengthen the Feelcoin network.
+| Platform | Package | Download |
+| --- | --- | --- |
+| Windows 10/11 x64 | NSIS installer (`.exe`) | [Windows installer](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe) |
+| Linux x86-64 | AppImage | [Linux AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage) |
+| Debian / Ubuntu x86-64 | DEB | [Linux DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb) |
 
-## Architecture
+[Release notes and all assets](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.1.0-alpha) · [SHA256 checksums](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/SHA256SUMS.txt)
 
-The desktop application uses **Tauri + Rust + React/TypeScript**.
+### Install on Windows
 
-The first development milestone focuses on:
+1. Download the official Windows x64 setup `.exe` from the release page.
+2. Verify its SHA-256 hash against the release's `SHA256SUMS.txt`.
+3. Run the installer and open **Feelcoin Desktop**.
+4. Create a new wallet or open an existing wallet, then allow the local daemon to synchronize.
 
-1. local/remote daemon connectivity;
-2. synchronization and network health;
-3. secure local wallet RPC integration;
-4. send / receive / transaction history;
-5. reproducible Windows and Linux builds.
+This Alpha build is not advertised as code-signed. Do not disable Windows Defender or other security protections to run it. Report any detection or installer error.
 
-### Antivirus / false-positive policy
+### Install on Linux
 
-The main wallet does **not** contain a cryptocurrency miner.
+**AppImage** (portable):
 
-The daemon and wallet components are treated as explicit, visible dependencies. We do not use UPX or executable obfuscation, we do not silently download or execute mining software, and we do not instruct users to disable antivirus protection.
+```bash
+chmod +x Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage
+./Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage
+```
 
-Future official releases will publish SHA-256 checksums and should be code-signed when signing infrastructure is available.
+**Debian / Ubuntu**:
 
-## Feelcoin network defaults
+```bash
+sudo apt install ./Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb
+```
 
-- P2P: `35780`
-- Daemon RPC: `35781`
-- ZMQ: `35782`
-- Wallet RPC: `35784`
+On systems without AppImage/FUSE support, the AppImage may also support `--appimage-extract-and-run`.
+
+### Verify downloads
+
+Download `SHA256SUMS.txt` into the same directory as your package.
+
+Linux:
+
+```bash
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```
+
+Windows PowerShell:
+
+```powershell
+Get-FileHash .\Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe -Algorithm SHA256
+```
+
+Compare the printed Windows hash with the matching line in `SHA256SUMS.txt`.
+
+## Alpha features
+
+- Local Feelcoin daemon and wallet RPC components bundled with the application.
+- Wallet creation and opening, balance refresh, send and receive tools.
+- Network status, block height, peer count and daemon health information.
+- Open-source desktop application built with **Tauri, Rust, React and TypeScript**.
+- Windows installer and Linux AppImage/DEB distribution.
+
+### Alpha limitations
+
+Build success does not guarantee every wallet operation is validated on all systems. Windows testing has confirmed that the application launches and the local node reports peers and blockchain data; wallet creation, synchronization completeness, balance accuracy and transaction flows require further community testing. A daemon-reported target height of zero is not by itself proof that synchronization is complete.
+
+Do not use this Alpha to safeguard substantial funds. Keep independent offline backups of wallet recovery material.
+
+## Security
+
+- **Self-custody:** Keep your recovery seed and wallet keys under your control.
+- **No bundled miner:** This wallet does not package mining software or silently mine.
+- **No antivirus bypass:** We do not advise turning off endpoint protection.
+- **Verified build assets:** Published installers/packages are accompanied by SHA-256 checksums.
+- **Open source:** Inspect the code and submit reproducible bugs.
+
+**Never** send a recovery seed, private view/spend key, or wallet password in an issue, email, or chat.
+
+## Network defaults
+
+| Service | Port |
+| --- | --- |
+| P2P | `35780` |
+| Daemon RPC | `35781` |
+| ZMQ | `35782` |
+| Wallet RPC | `35784` |
 
 ## Development
 
-Prerequisites:
-
-- Node.js 20+
-- Rust stable
-- Tauri platform prerequisites
+Node.js 20+, stable Rust and the prerequisites for Tauri 2 are required.
 
 ```bash
 npm install
 npm run tauri dev
 ```
 
-## Repository
+## Official links
 
-Core protocol: https://github.com/feelcoin-org/feelcoin
+- [Feelcoin website](https://feelcoin.org)
+- [Feelcoin Core](https://github.com/feelcoin-org/feelcoin)
+- [Desktop Alpha release](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.1.0-alpha)
+- [Report an issue](https://github.com/feelcoin-org/feelcoin-desktop/issues)
 
-Official website: https://feelcoin.org
-
-## License
-
-BSD 3-Clause. See [LICENSE](LICENSE).
+**License:** BSD 3-Clause — see [LICENSE](LICENSE).
 
 ---
 
