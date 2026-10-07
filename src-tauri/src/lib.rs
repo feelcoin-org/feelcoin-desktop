@@ -686,6 +686,12 @@ fn close_wallet() -> Result<(), String> {
 }
 
 #[tauri::command]
+fn refresh_wallet() -> Result<(), String> {
+    call_wallet_rpc("refresh")?;
+    Ok(())
+}
+
+#[tauri::command]
 fn wallet_summary() -> Result<WalletSummary, String> {
     let balance = call_wallet_rpc_with_params("get_balance", json!({"account_index": 0}))?;
     let address = call_wallet_rpc_with_params("get_address", json!({"account_index": 0}))?;
@@ -796,6 +802,7 @@ pub fn run() {
             open_wallet,
             restore_wallet,
             close_wallet,
+            refresh_wallet,
             wallet_summary,
             send_feel,
             transaction_history

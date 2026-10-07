@@ -378,6 +378,11 @@ function App() {
           password: walletPassword,
         });
 
+        // Force the wallet to scan to the daemon's current height before
+        // reading the balance. Without this, the first wallet_summary can
+        // briefly report 0 FEEL after opening an existing wallet.
+        await invoke("refresh_wallet");
+
         setWalletMessage("Wallet opened successfully.");
       } else {
         if (!seed.trim()) {
@@ -396,6 +401,9 @@ function App() {
           seed: seed.trim(),
           restoreHeight: height,
         });
+
+        // Scan the restored wallet before showing its balance.
+        await invoke("refresh_wallet");
 
         setSeed("");
         setWalletMessage("✓ Wallet restored successfully.");
