@@ -1,0 +1,87 @@
+name: Update Alpha release notes
+
+on:
+  push:
+    branches: [alpha-dev]
+    paths:
+      - .github/workflows/update-alpha-release-notes.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Rewrite release description for Windows and Linux
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat > /tmp/release-notes.md <<'RELEASE_NOTES_EOF'
+# Feelcoin Desktop Wallet — Windows & Linux Alpha
+
+**Release:** v0.1.0 Alpha · **Platform:** Windows x64 / Linux x86-64 · **Network:** Feelcoin Mainnet
+
+> **Pre-release software:** Back up your wallet recovery seed securely and offline. Test with small amounts and report reproducible issues. Never share wallet passwords, private keys or recovery seeds.
+
+## Downloads
+
+| Operating system | File |
+| --- | --- |
+| **Windows 10/11 (x64)** | [Windows setup installer (.exe)](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe) |
+| **Linux (x86-64)** | [Portable AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage) |
+| **Debian / Ubuntu (amd64)** | [DEB installer](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb) |
+
+The desktop wallet includes the Feelcoin daemon and wallet RPC components; a separate Feelcoin Core download is not normally required.
+
+## Install
+
+**Windows:** Download the setup `.exe`, verify its SHA-256 checksum, run the installer and start Feelcoin Desktop. This Alpha is not advertised as digitally code-signed; do not disable antivirus protections to install it.
+
+**Linux AppImage:**
+```bash
+chmod +x Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage
+./Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage
+```
+
+**Debian / Ubuntu:**
+```bash
+sudo apt install ./Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb
+```
+
+## Verify SHA-256
+
+Download [SHA256SUMS.txt](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.1.0-alpha/SHA256SUMS.txt).
+
+Linux (from the downloads directory):
+```bash
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```
+
+Windows PowerShell:
+```powershell
+Get-FileHash .\Feelcoin-Desktop-v0.1.0-alpha-windows-x64-setup.exe -Algorithm SHA256
+```
+Match the result to the Windows installer entry in `SHA256SUMS.txt`.
+
+## First Launch & Alpha Testing
+
+1. Open Feelcoin Desktop and create a new test wallet, or open an existing wallet you control.
+2. Allow the bundled daemon to connect and synchronize.
+3. Check wallet balance, receiving address and transaction history.
+4. Test sending with a small amount only after the wallet has confirmed synchronization.
+5. Report problems with clear reproduction steps. **Never include your recovery seed, private keys, or password.**
+
+Build and packaging validation succeeded for Windows and Linux. The Windows application has been observed launching with a connected local daemon, but full wallet operations and cross-system behavior are still being validated. A target height shown as `0` does not alone confirm full sync.
+
+## Open Source & Security
+
+Feelcoin Desktop uses **Tauri + Rust + React/TypeScript**. The release contains **no bundled miner or silent background mining**. Keep antivirus protections enabled and verify downloads through SHA-256.
+
+[Source repository](https://github.com/feelcoin-org/feelcoin-desktop) · [Report an issue](https://github.com/feelcoin-org/feelcoin-desktop/issues) · [Official website](https://feelcoin.org)
+
+**In Feels We Trust.**
+RELEASE_NOTES_EOF
+          gh release edit v0.1.0-alpha --repo "${{ github.repository }}" --title "Feelcoin Desktop Wallet v0.1.0 Alpha — Windows & Linux" --notes-file /tmp/release-notes.md
+          gh release view v0.1.0-alpha --repo "${{ github.repository }}" --json name,url
