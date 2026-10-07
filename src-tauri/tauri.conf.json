@@ -42,6 +42,16 @@
       "icons/128x128@2x.png",
       "icons/icon.png",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "Feelcoin",
+    "homepage": "https://feelcoin.org",
+    "license": "BSD-3-Clause",
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/metainfo/org.feelcoin.desktop.metainfo.xml": "linux/org.feelcoin.desktop.metainfo.xml"
+        }
+      }
+    }
   }
 }

@@ -2,9 +2,11 @@
 name = "feelcoin-desktop"
 version = "0.1.0"
 description = "Official Feelcoin desktop wallet"
-authors = ["Feelcoin contributors"]
+authors = ["feelcoin-dev <support@feelcoin.org>"]
 edition = "2021"
 license = "BSD-3-Clause"
+homepage = "https://feelcoin.org"
+repository = "https://github.com/feelcoin-org/feelcoin-desktop"
 
 [lib]
 name = "feelcoin_desktop_lib"
