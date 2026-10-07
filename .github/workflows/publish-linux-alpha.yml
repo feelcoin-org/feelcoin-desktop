@@ -1,0 +1,60 @@
+name: Publish verified Linux Alpha
+
+on:
+  push:
+    branches: [alpha-dev]
+    paths:
+      - .github/workflows/publish-linux-alpha.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download successful Linux build #11
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p incoming
+          gh run download 37687866565 --repo "${{ github.repository }}" --name Feelcoin-Desktop-Alpha-Linux-x64 --dir incoming
+          cd incoming
+          sha256sum -c SHA256SUMS.txt
+          test -f "Feelcoin Desktop_0.1.0_amd64.deb"
+          test -f "Feelcoin Desktop_0.1.0_amd64.AppImage"
+
+      - name: Stage both verified Linux release packages
+        run: |
+          set -euo pipefail
+          mkdir -p publish
+          cp "incoming/Feelcoin Desktop_0.1.0_amd64.deb" "publish/Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb"
+          cp "incoming/Feelcoin Desktop_0.1.0_amd64.AppImage" "publish/Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage"
+
+      - name: Combine Windows and refreshed Linux checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download v0.1.0-alpha --repo "${{ github.repository }}" --pattern SHA256SUMS.txt --dir publish
+          cd publish
+          grep -i 'windows-x64-setup.exe' SHA256SUMS.txt > WINDOWS-SHA256SUMS.txt
+          test -s WINDOWS-SHA256SUMS.txt
+          mv WINDOWS-SHA256SUMS.txt SHA256SUMS.txt
+          sha256sum Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage >> SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt --ignore-missing
+
+      - name: Replace outdated Linux assets and checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload v0.1.0-alpha \
+            publish/Feelcoin-Desktop-v0.1.0-alpha-linux-amd64.deb \
+            publish/Feelcoin-Desktop-v0.1.0-alpha-linux-x86_64.AppImage \
+            publish/SHA256SUMS.txt \
+            --clobber --repo "${{ github.repository }}"
+          gh release view v0.1.0-alpha --repo "${{ github.repository }}" --json assets,name,url
