@@ -148,6 +148,9 @@ jobs:
           test -n "$daemon"
           test -n "$wallet_rpc"
           mkdir -p ../src-tauri/resources/bin
+          rm -f ../src-tauri/resources/bin/feelcoind
+          rm -f ../src-tauri/resources/bin/feelcoin-wallet-rpc
+          rm -f ../src-tauri/resources/lib/*.so*
           cp "$daemon" ../src-tauri/resources/bin/feelcoind.exe
           cp "$wallet_rpc" ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe
           sha256sum ../src-tauri/resources/bin/feelcoind.exe ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe

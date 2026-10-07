@@ -4,6 +4,8 @@ use std::fs;
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::Manager;
@@ -339,6 +341,14 @@ fn resolve_bundled_binary(app: &tauri::AppHandle, base: &str) -> Result<PathBuf,
         .ok_or_else(|| format!("Bundled Feelcoin component not found: {name}"))
 }
 
+fn configure_background_process(command: &mut Command) {
+    #[cfg(target_os = "windows")]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+}
+
 fn apply_bundled_library_path(
     command: &mut Command,
     app: &tauri::AppHandle,
@@ -425,6 +435,7 @@ fn start_local_services(
             let daemon_log = log_dir.join("feelcoind.log");
 
             let mut daemon_command = Command::new(daemon_binary);
+            configure_background_process(&mut daemon_command);
 
             apply_bundled_library_path(
                 &mut daemon_command,
@@ -465,6 +476,7 @@ fn start_local_services(
             let wallet_log = log_dir.join("wallet-rpc.log");
 
             let mut wallet_command = Command::new(wallet_binary);
+            configure_background_process(&mut wallet_command);
 
             apply_bundled_library_path(
                 &mut wallet_command,
