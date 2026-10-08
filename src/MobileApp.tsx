@@ -1,7 +1,6 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import {invoke} from "@tauri-apps/api/core";
 import "./mobile.css";
-import AndroidWallet from "./AndroidWallet";
 import MobileWallet from "./MobileWallet";
 type Tab="wallet"|"mining"|"explorer"|"network"|"settings";
 type Stats={pool_hashrate?:number;network_hashrate?:number;network_height?:number;connected_miners?:number;pool_fee?:number;miner_hashrate?:number;miner_balance?:number;miner_total_paid?:number;worker_count?:number};
@@ -114,7 +113,7 @@ export default function MobileApp(){
     <div className="fm-heading"><h2>Network snapshot</h2><span>Official pool</span></div><section className="fm-card fm-network"><div><span>Pool hashrate</span><b>{fmtHash(stats?.pool_hashrate)}</b></div><div><span>Network hashrate</span><b>{fmtHash(stats?.network_hashrate)}</b></div><div><span>Block height</span><b>{stats?.network_height?.toLocaleString()??"—"}</b></div><div><span>Connected miners</span><b>{stats?.connected_miners?.toLocaleString()??"—"}</b></div></section>
     <button className="fm-outline-button" disabled={loading} onClick={()=>void refresh()}>{loading?"Refreshing…":"↻ Refresh mining statistics"}</button><button className="fm-link" onClick={()=>open(poolURL)}>Official mining pool ↗</button>
    </>}
-   {tab==="wallet"&&<AndroidWallet/>}
+   {tab==="wallet"&&<MobileWallet/>}
    {tab==="explorer"&&<>
     <p className="fm-kicker">THE FEELCOIN BLOCKCHAIN</p><h1>Block <em>Explorer.</em></h1>
     <p className="fm-lead">Look up blocks and transactions here, with live information from the official Feelcoin explorer.</p>
