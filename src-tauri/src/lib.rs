@@ -240,9 +240,15 @@ async fn explorer_json(path: &str) -> Result<Value, String> {
         .await
         .map_err(|_| "Official explorer is unavailable".to_string())?;
     if !response.status().is_success() {
-        return Err(format!("Explorer returned HTTP {}", response.status().as_u16()));
+        return Err(format!(
+            "Explorer returned HTTP {}",
+            response.status().as_u16()
+        ));
     }
-    if response.content_length().is_some_and(|size| size > 2_000_000) {
+    if response
+        .content_length()
+        .is_some_and(|size| size > 2_000_000)
+    {
         return Err("Explorer response is too large".into());
     }
     let body = response
@@ -270,17 +276,17 @@ async fn mobile_explorer_home() -> Result<Value, String> {
 async fn mobile_explorer_search(query: String) -> Result<Value, String> {
     let query = query.trim();
     // Search by decimal block height or exact 64-character hexadecimal block/tx hash.
-    let is_height = !query.is_empty()
-        && query.len() <= 12
-        && query.bytes().all(|b| b.is_ascii_digit());
+    let is_height =
+        !query.is_empty() && query.len() <= 12 && query.bytes().all(|b| b.is_ascii_digit());
     let is_hash = query.len() == 64 && query.bytes().all(|b| b.is_ascii_hexdigit());
     if !is_height && !is_hash {
         return Err("Enter a block height or a 64-character block/transaction hash".into());
     }
     let data = explorer_json(&format!("/api/search?q={query}")).await?;
-    if !["block-height", "block-hash", "transaction"].iter().any(|kind| {
-        data.get("type").and_then(Value::as_str) == Some(*kind)
-    }) {
+    if !["block-height", "block-hash", "transaction"]
+        .iter()
+        .any(|kind| data.get("type").and_then(Value::as_str) == Some(*kind))
+    {
         return Err("Explorer did not return a recognized block or transaction".into());
     }
     Ok(data)
