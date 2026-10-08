@@ -53,10 +53,20 @@ jobs:
         run: npm install
       - name: Verify TypeScript and UI
         run: npm run build
-      - name: Generate Android launcher icons from official Feelcoin logo
-        run: npx tauri icon public/feelcoin-logo.png --fit contain
       - name: Initialize Android target
         run: npx tauri android init --ci
+      - name: Generate Android launcher icons from official Feelcoin logo
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+      - name: Verify generated Feelcoin Android launcher resources
+        run: |
+          set -euo pipefail
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            for icon in ic_launcher.png ic_launcher_round.png ic_launcher_foreground.png; do
+              test -s "src-tauri/gen/android/app/src/main/res/mipmap-${density}/${icon}"
+            done
+          done
+          echo "Official Feelcoin launcher resources exist for every Android density."
+          sha256sum src-tauri/gen/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
       - name: Build ARM64 debug APK
         run: npx tauri android build --debug --apk --target aarch64
       - name: Verify APK artifact exists
