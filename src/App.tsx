@@ -699,7 +699,7 @@ function App() {
               </article>
 
               <article className="card wide">
-                <p className="eyebrow">ALPHA SECURITY MODEL</p>
+                <p className="eyebrow">BETA SECURITY MODEL</p>
                 <h3>Visible processes. Explicit choices.</h3>
                 <div className="principles">
                   <div><strong>No miner included</strong><span>The installer contains no mining engine.</span></div>
@@ -1074,7 +1074,7 @@ function App() {
           </section>
         )}
 
-        <footer>Feelcoin Desktop Alpha · Windows + Linux · In Feels We Trust.</footer>
+        <footer>Feelcoin Desktop Beta · Windows + Linux · In Feels We Trust.</footer>
       </section>
     </main>
   );
