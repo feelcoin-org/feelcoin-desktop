@@ -53,6 +53,8 @@ jobs:
         run: npm install
       - name: Verify TypeScript and UI
         run: npm run build
+      - name: Generate Android launcher icons from official Feelcoin logo
+        run: npx tauri icon public/feelcoin-logo.png
       - name: Initialize Android target
         run: npx tauri android init --ci
       - name: Build ARM64 debug APK
@@ -62,7 +64,7 @@ jobs:
       - name: Upload APK for device testing
         uses: actions/upload-artifact@v4
         with:
-          name: feelcoin-mining-watch-android-arm64-alpha
+          name: feelcoin-android-arm64-alpha
           path: src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error
           retention-days: 14
