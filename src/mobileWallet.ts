@@ -187,9 +187,17 @@ export async function feelcoinCore(): Promise<CryptoCore> {
     if (!window.MyMoneroClient) throw new Error("ENGINE_SCRIPT_FACTORY_MISSING");
     try {
       return await window.MyMoneroClient({ locateFile: file => asset(file) });
-    } catch {
-      // Do not echo engine-provided error text: it might contain wallet data.
-      throw new Error("ENGINE_FACTORY_INIT_FAILED");
+    } catch (error) {
+      // Expose only the exception class, never the exception message or stack:
+      // Emscripten messages can contain sensitive wallet material.
+      const kind = error instanceof WebAssembly.CompileError ? "WASM_COMPILE" :
+        error instanceof WebAssembly.LinkError ? "WASM_LINK" :
+        error instanceof WebAssembly.RuntimeError ? "WASM_RUNTIME" :
+        error instanceof TypeError ? "TYPE_ERROR" :
+        error instanceof RangeError ? "RANGE_ERROR" :
+        error instanceof ReferenceError ? "REFERENCE_ERROR" :
+        error instanceof SyntaxError ? "SYNTAX_ERROR" : "UNKNOWN";
+      throw new Error("ENGINE_FACTORY_INIT_FAILED_" + kind);
     }
   })();
   try { return await corePromise; } catch (error) { corePromise = null; throw error; }
