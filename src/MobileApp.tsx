@@ -52,7 +52,7 @@ export default function MobileApp(){
  function open(url:string){void invoke("mobile_open_link",{url}).catch(()=>setError("Could not open this link."));}
  const hasMiner=!!address&&!!stats;
  return <div className="fm">
-  <header className="fm-header"><div className="fm-brand"><img alt="Official Feelcoin logo" src="/feelcoin-logo.png"/><div><b>FEELCOIN</b><small>ANDROID ALPHA</small></div></div><span className="fm-pill"><i/>OFFICIAL ALPHA</span></header>
+  <header className="fm-header"><div className="fm-brand"><img alt="Official Feelcoin logo" src="/feelcoin-logo.png"/><div><b>FEELCOIN</b><small>ANDROID ALPHA</small></div></div><span className="fm-pill" title="Network status from official pool statistics"><i style={{background:stats?"#42d69a":"#e7aa62"}}/>{stats?"NETWORK ONLINE":"NETWORK UNAVAILABLE"}</span></header>
   <main className="fm-main">
    {tab==="mining"&&<>
     <p className="fm-kicker">YOUR MINERS. YOUR FEEL. ANYWHERE.</p><h1>Mining <em>Watch.</em></h1><p className="fm-lead">Real pool statistics. No phone mining, and no recovery seed required.</p>
