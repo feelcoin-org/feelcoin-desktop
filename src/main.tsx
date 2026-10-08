@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import MobileApp from "./MobileApp";
 import "./styles.css";
+import "./mobile-override.css";
 
 const android = /Android/i.test(navigator.userAgent);
 if (android) document.body.classList.add("feel-mobile-body");
