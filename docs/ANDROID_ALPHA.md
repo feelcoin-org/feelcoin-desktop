@@ -1,11 +1,21 @@
-# Feelcoin Android Mining Watch — private alpha
+# Feelcoin Android — private alpha
 
-This Android alpha reuses the existing official Feelcoin coin image in public/feelcoin-logo.png and app icon in src-tauri/icons/icon.png. No generated or substitute logos.
+The Android application uses the existing official Feelcoin logo from `public/feelcoin-logo.png`. The launcher icon is generated from that image in CI. Its installed name is **Feelcoin**.
 
-Features: read-only mining dashboard, official pool stats /stats, /workers, /miner-payments, public FEEL address stored locally, foreground refresh every 30 seconds, official web-wallet link and pool payout history.
+## Current features
 
-Privacy and security: public monitoring address only; no seed, private keys, password, wallet RPC access, mining or faucet. The app sends the saved public address to pool.feelcoin.org through HTTPS. Pool balances are NOT on-chain wallet balances. No native transactional wallet functions have been completed in this alpha. Do not use this app to store funds.
+Five tabs: Wallet, Mining, Explorer, Network and Settings. Pool payouts are shown within Mining. The official web wallet is opened in the device browser for opening, creating or restoring wallets. Explorer opens the official block explorer. Network shows available read-only pool-reported network statistics.
 
-Build: run the Build Android Alpha APK GitHub Actions workflow on feature/android-wallet. Download the build artifact and sideload the debug APK on a personal test device. Do NOT distribute publicly until signed release builds, Android device tests and wallet security review.
+The application has **no Android daemon, no local mining, and no native wallet engine**. The existing desktop code still includes localhost daemon and wallet-RPC functions for desktop use; those are not the Android wallet implementation.
 
-To follow up: native non-custodial wallet engine, Android Keystore, audited send/receive, exact atomic-unit conversions, pool endpoint robustness, notifications, formal release signing, manual device tests.
+## Remote-node wallet architecture (planned; NOT implemented)
+
+The future Android wallet must connect to a remote Feelcoin daemon over TLS for synchronization and broadcasting. A remote daemon is not a custodial wallet service. Wallet secrets must be generated, encrypted, stored and used for signing locally on the device; never send a recovery phrase, private spend key, or wallet password to a remote daemon or pool. Implement audited native wallet logic and secure Android key storage before enabling create/restore/send in the native UI.
+
+Do not mistake a remote daemon's `get_info` response for wallet synchronization or spend capability. A public remote node can see the connecting IP and may learn wallet-related query metadata. Verify the selected endpoint, certificate validation and blockchain/network identity before trusting it.
+
+## Testing and release
+
+Build using the `Build Android Alpha APK` workflow on `feature/android-wallet`. Download its debug APK artifact for private device testing only. **No public release** until the wallet engine, security review, device tests, signing and recovery tests are complete. Never use this alpha to store funds.
+
+Read-only pool queries use HTTPS and a public FEEL monitoring address; pool balances are not wallet balances. Some metrics may be unavailable. Wallet access currently launches `https://wallet.feelcoin.org` in the browser.
