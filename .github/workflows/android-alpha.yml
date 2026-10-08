@@ -10,6 +10,7 @@ on:
       - 'docs/ANDROID_ALPHA.md'
       - '.github/workflows/android-alpha.yml'
       - 'package.json'
+      - 'scripts/**'
 permissions:
   contents: read
 jobs:
