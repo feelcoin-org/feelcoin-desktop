@@ -40,6 +40,21 @@ jobs:
           sed -i.bak '0,/version = "0.1.0"/s//version = "0.2.0-beta.1"/' src-tauri/Cargo.toml
       - name: Generate platform icons from official Feelcoin logo
         run: npx tauri icon public/feelcoin-logo.png --fit contain
+      - name: Configure generated icons for Linux and Windows bundlers
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(path, 'utf8'));
+          config.bundle.icon = [
+            'icons/32x32.png',
+            'icons/128x128.png',
+            'icons/128x128@2x.png',
+            'icons/icon.ico'
+          ];
+          fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
+          NODE
       - name: Verify generated platform icons
         shell: bash
         run: |
