@@ -131,6 +131,9 @@ function App() {
   const [walletRpc, setWalletRpc] = useState<WalletRpcStatus>(EMPTY_WALLET_RPC);
   const [wallet, setWallet] = useState<WalletSummary | null>(null);
   const [history, setHistory] = useState<TransferHistory>({});
+  const [historyRefreshing, setHistoryRefreshing] = useState(false);
+  const [historyStatus, setHistoryStatus] = useState<string | null>(null);
+  const historyRefreshLock = useRef(false);
   const [checking, setChecking] = useState(false);
   const [serviceError, setServiceError] = useState<string | null>(null);
   const [restartingServices, setRestartingServices] = useState(false);
@@ -282,12 +285,22 @@ function App() {
     }
   }
 
-  async function loadHistory() {
+  async function loadHistory(scan = false) {
+    if (historyRefreshLock.current || walletOperationLock.current || serviceRestartLock.current) return;
+    historyRefreshLock.current = true;
+    setHistoryRefreshing(true);
+    setHistoryStatus(scan ? "Scanning blockchain…" : "Loading transactions…");
     try {
+      if (scan) await invoke("refresh_wallet");
       const result = await invoke<TransferHistory>("transaction_history");
       setHistory(result ?? {});
-    } catch {
-      setHistory({});
+      setHistoryStatus("Up to date · " + new Date().toLocaleTimeString());
+    } catch (error) {
+      // Keep the last known transactions visible when a request fails.
+      setHistoryStatus("Refresh failed: " + String(error));
+    } finally {
+      historyRefreshLock.current = false;
+      setHistoryRefreshing(false);
     }
   }
 
@@ -306,9 +319,12 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (view === "transactions" && wallet) {
-      loadHistory();
-    }
+    if (view !== "transactions" || !wallet?.address) return;
+    void loadHistory(true);
+    const timer = window.setInterval(() => {
+      void loadHistory(true);
+    }, 15000);
+    return () => window.clearInterval(timer);
   }, [view, wallet?.address]);
 
   useEffect(() => {
@@ -517,9 +533,14 @@ function App() {
     }
   }
 
-  const transferRows = Object.entries(history).flatMap(([group, rows]) =>
-    (rows || []).map((entry) => ({ ...entry, group })),
-  );
+  const transferRows = Object.entries(history)
+    .flatMap(([group, rows]) =>
+      (rows || []).map((entry) => ({ ...entry, group })),
+    )
+    .sort((a, b) =>
+      (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0) ||
+      (Number(b.height) || 0) - (Number(a.height) || 0),
+    );
 
   function navButton(target: View, label: string, disabled = false) {
     return (
@@ -1023,8 +1044,10 @@ function App() {
                 <p className="eyebrow">TRANSACTIONS</p>
                 <h2>Wallet activity</h2>
               </div>
-              <button className="secondary compact" onClick={loadHistory}>Refresh</button>
+              <button className="secondary compact" disabled={historyRefreshing} onClick={() => void loadHistory(true)}>{historyRefreshing ? "Refreshing…" : "Refresh"}</button>
             </div>
+
+            {historyStatus && <p role="status" aria-live="polite">{historyStatus}</p>}
 
             {transferRows.length === 0 ? (
               <div className="empty-state">No wallet transactions to show yet.</div>
