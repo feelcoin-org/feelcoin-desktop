@@ -51,8 +51,31 @@ jobs:
           fi
       - name: Install JavaScript dependencies
         run: npm install
+      - name: Checkout pinned official Feelcoin wallet crypto engine
+        uses: actions/checkout@v4
+        with:
+          repository: feelcoin-org/feelcoin-web-wallet
+          ref: 4cbbbdd5ea5de120ecbc8de5e57410b5b11462a5
+          path: wallet-source
+          persist-credentials: false
+      - name: Bundle verified local WASM wallet engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public/wallet-core
+          js='wallet-source/public/wasm/MyMoneroCoreCpp_WASM.js'
+          wasm='wallet-source/public/wasm/MyMoneroCoreCpp_WASM.wasm'
+          test -s "$js"
+          test -s "$wasm"
+          test "$(git hash-object "$js")" = '425cdbefeba8d46afc7c7d7d8c2e518c023ccd07'
+          test "$(git hash-object "$wasm")" = '1cec3548d6e83cc70bbb2f21009d07711cbc5194'
+          cp "$js" "$wasm" public/wallet-core/
+          echo "Pinned official Feelcoin crypto engine was verified and included."
       - name: Verify TypeScript and UI
-        run: npm run build
+        run: |
+          npm run build
+          test -s dist/wallet-core/MyMoneroCoreCpp_WASM.js
+          test -s dist/wallet-core/MyMoneroCoreCpp_WASM.wasm
       - name: Initialize Android target
         run: npx tauri android init --ci
       - name: Generate Android launcher icons from official Feelcoin logo
