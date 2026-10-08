@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import {invoke} from "@tauri-apps/api/core";
 import "./mobile.css";
+import MobileWallet from "./MobileWallet";
 type Tab="wallet"|"mining"|"explorer"|"network"|"settings";
 type Stats={pool_hashrate?:number;network_hashrate?:number;network_height?:number;connected_miners?:number;pool_fee?:number;miner_hashrate?:number;miner_balance?:number;miner_total_paid?:number;worker_count?:number};
 type Worker={name?:string;worker?:string;id?:string;hashrate?:number;hash_rate?:number;last_share?:number;last_seen?:number};
@@ -112,7 +113,7 @@ export default function MobileApp(){
     <div className="fm-heading"><h2>Network snapshot</h2><span>Official pool</span></div><section className="fm-card fm-network"><div><span>Pool hashrate</span><b>{fmtHash(stats?.pool_hashrate)}</b></div><div><span>Network hashrate</span><b>{fmtHash(stats?.network_hashrate)}</b></div><div><span>Block height</span><b>{stats?.network_height?.toLocaleString()??"—"}</b></div><div><span>Connected miners</span><b>{stats?.connected_miners?.toLocaleString()??"—"}</b></div></section>
     <button className="fm-outline-button" disabled={loading} onClick={()=>void refresh()}>{loading?"Refreshing…":"↻ Refresh mining statistics"}</button><button className="fm-link" onClick={()=>open(poolURL)}>Official mining pool ↗</button>
    </>}
-   {tab==="wallet"&&<><p className="fm-kicker">YOUR KEYS. YOUR CONTROL.</p><h1>Your <em>Wallet.</em></h1><section className="fm-feature fm-wallet"><img src="/feelcoin-logo.png" alt="Official FEEL coin"/><h2>Welcome to Feelcoin.</h2><p>Native Android wallet signing and storage are still under development. For now, securely access our existing non-custodial web wallet in your browser.</p><button className="fm-gold-button" onClick={()=>open(walletURL)}>Open existing wallet ↗</button><button className="fm-outline-button" onClick={()=>open(walletURL)}>Create wallet in official web wallet ↗</button><button className="fm-outline-button" onClick={()=>open(walletURL)}>Recover wallet in official web wallet ↗</button></section><section className="fm-card"><b>Secure by design</b><p>This read-only companion never asks for wallet passwords, private keys or seed phrases. Your monitoring address is public, and it cannot spend coins.</p></section></>}
+   {tab==="wallet"&&<MobileWallet/>}
    {tab==="explorer"&&<>
     <p className="fm-kicker">THE FEELCOIN BLOCKCHAIN</p><h1>Block <em>Explorer.</em></h1>
     <p className="fm-lead">Look up blocks and transactions here, with live information from the official Feelcoin explorer.</p>
