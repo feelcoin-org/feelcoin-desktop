@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import {invoke} from "@tauri-apps/api/core";
 import "./mobile.css";
+import AndroidWallet from "./AndroidWallet";
 import MobileWallet from "./MobileWallet";
 type Tab="wallet"|"mining"|"explorer"|"network"|"settings";
 type Stats={pool_hashrate?:number;network_hashrate?:number;network_height?:number;connected_miners?:number;pool_fee?:number;miner_hashrate?:number;miner_balance?:number;miner_total_paid?:number;worker_count?:number};
@@ -113,7 +114,7 @@ export default function MobileApp(){
     <div className="fm-heading"><h2>Network snapshot</h2><span>Official pool</span></div><section className="fm-card fm-network"><div><span>Pool hashrate</span><b>{fmtHash(stats?.pool_hashrate)}</b></div><div><span>Network hashrate</span><b>{fmtHash(stats?.network_hashrate)}</b></div><div><span>Block height</span><b>{stats?.network_height?.toLocaleString()??"—"}</b></div><div><span>Connected miners</span><b>{stats?.connected_miners?.toLocaleString()??"—"}</b></div></section>
     <button className="fm-outline-button" disabled={loading} onClick={()=>void refresh()}>{loading?"Refreshing…":"↻ Refresh mining statistics"}</button><button className="fm-link" onClick={()=>open(poolURL)}>Official mining pool ↗</button>
    </>}
-   {tab==="wallet"&&<MobileWallet/>}
+   {tab==="wallet"&&<AndroidWallet/>}
    {tab==="explorer"&&<>
     <p className="fm-kicker">THE FEELCOIN BLOCKCHAIN</p><h1>Block <em>Explorer.</em></h1>
     <p className="fm-lead">Look up blocks and transactions here, with live information from the official Feelcoin explorer.</p>
@@ -200,7 +201,7 @@ export default function MobileApp(){
     <button className="fm-outline-button" disabled={chainLoading||loading} onClick={()=>{void refresh();void refreshChain();}}>{chainLoading||loading?"Refreshing…":"↻ Refresh network"}</button>
     <button className="fm-link" onClick={()=>open(explorerURL)}>Official explorer ↗</button>
    </>}
-   {tab==="settings"&&<><p className="fm-kicker">YOUR APP</p><h1>App <em>Settings.</em></h1><section className="fm-card fm-row"><div><b>Foreground auto-refresh</b><p>Update pool data every 30 seconds while the app is open.</p></div><input aria-label="Automatic refresh" type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)}/></section><section className="fm-card"><b>Saved monitoring address</b><p className="fm-address fm-wrap">{address||"None"}</p><button className="fm-outline-button" onClick={()=>{localStorage.removeItem(STORAGE);setAddress("");setDraft("");setEditing(true);setTab("mining");}}>Forget public address</button></section><section className="fm-card"><b>Alpha limitations</b><p>Read-only monitoring only. No local mining, no faucet, no native transaction signing, no background notifications. Use the official browser wallet for wallet operations. Some pool data may be temporarily unavailable.</p></section><button className="fm-link" onClick={()=>open("https://feelcoin.org")}>Visit official website ↗</button><button className="fm-link" onClick={()=>open("https://github.com/feelcoin-org/feelcoin-desktop")}>View source on GitHub ↗</button></>}
+   {tab==="settings"&&<><p className="fm-kicker">YOUR APP</p><h1>App <em>Settings.</em></h1><section className="fm-card fm-row"><div><b>Foreground auto-refresh</b><p>Update pool data every 30 seconds while the app is open.</p></div><input aria-label="Automatic refresh" type="checkbox" checked={auto} onChange={e=>setAuto(e.target.checked)}/></section><section className="fm-card"><b>Saved monitoring address</b><p className="fm-address fm-wrap">{address||"None"}</p><button className="fm-outline-button" onClick={()=>{localStorage.removeItem(STORAGE);setAddress("");setDraft("");setEditing(true);setTab("mining");}}>Forget public address</button></section><section className="fm-card"><b>Private test limitations</b><p>Local create/open/recover uses bundled FEEL WASM. No wallet balance sync, sending, mining or faucet. Use disposable test wallets only.</p></section><button className="fm-link" onClick={()=>open("https://feelcoin.org")}>Visit official website ↗</button><button className="fm-link" onClick={()=>open("https://github.com/feelcoin-org/feelcoin-desktop")}>View source on GitHub ↗</button></>}
    {error&&<p className="fm-error" role="status">{error}</p>}
   </main><nav className="fm-tabs" aria-label="App navigation">{(["wallet","mining","explorer","network","settings"] as Tab[]).map(x=><button key={x} className={tab===x?"active":""} aria-current={tab===x?"page":undefined} onClick={()=>setTab(x)}><span>{ICONS[x]}</span><small>{x.charAt(0).toUpperCase()+x.slice(1)}</small></button>)}</nav>
  </div>;
