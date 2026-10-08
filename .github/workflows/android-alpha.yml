@@ -71,8 +71,16 @@ jobs:
           test "$(git hash-object "$js")" = '425cdbefeba8d46afc7c7d7d8c2e518c023ccd07'
           test "$(git hash-object "$wasm")" = '1cec3548d6e83cc70bbb2f21009d07711cbc5194'
           node scripts/prepare-android-wallet-core.cjs
-          node scripts/smoke-android-wallet-core.cjs
+          timeout 50s node scripts/smoke-android-wallet-core.cjs
           echo "Pinned offline crypto engine has generated and recovered a real FEEL test wallet."
+      - name: Preserve pinned crypto engine for offline diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feelcoin-android-crypto-core-diagnostics
+          path: public/wallet-core/*
+          if-no-files-found: ignore
+          retention-days: 2
       - name: Verify TypeScript and UI
         run: |
           npm run build
