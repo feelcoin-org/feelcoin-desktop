@@ -77,7 +77,7 @@ export default function MobileWallet() {
     } catch (error) {
       const info = error instanceof Error ? error.message : "Wallet operation failed.";
       // Never display crypto-engine-provided details that might echo user seed material.
-      setMessage(/engine|mnemonic|wasm/i.test(info) ? "Local wallet engine failed. Please report this error; seed and keys must never be shared." : info);
+      setMessage(/engine|mnemonic|wasm/i.test(info) ? "Local wallet engine failed (" + (coreErrorCode || "ENGINE_OPERATION") + "). Never share seed or keys." : info);
     } finally {
       setBusy(false);
     }
