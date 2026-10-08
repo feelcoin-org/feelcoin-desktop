@@ -150,18 +150,47 @@ export async function openWallet(name: string, password: string): Promise<LocalW
 export async function feelcoinCore(): Promise<CryptoCore> {
   if (corePromise) return corePromise;
   corePromise = (async () => {
+    const asset = (name: string) => new URL("wallet-core/" + name, document.baseURI).href;
+    // Check the bundled assets explicitly: Android WebView otherwise hides the
+    // underlying fetch/compile error behind a generic Emscripten rejection.
+    const wasmURL = asset("MyMoneroCoreCpp_WASM.wasm");
+    let bytes: ArrayBuffer;
+    try {
+      const response = await fetch(wasmURL, { cache: "no-store" });
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      bytes = await response.arrayBuffer();
+      if (bytes.byteLength < 8) throw new Error("empty asset");
+    } catch {
+      throw new Error("ENGINE_WASM_ASSET_UNAVAILABLE");
+    }
+    try {
+      // Compile once before engine startup to distinguish CSP/compile errors
+      // from the JavaScript glue or cryptographic engine initialization.
+      await WebAssembly.compile(bytes);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      if (/content security policy|unsafe-eval|blocked by csp|refused to compile/i.test(detail)) {
+        throw new Error("ENGINE_WASM_CSP_BLOCKED");
+      }
+      throw new Error("ENGINE_WASM_COMPILE_FAILED");
+    }
     if (!window.MyMoneroClient) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
-        script.src = new URL("wallet-core/MyMoneroCoreCpp_WASM.js", document.baseURI).href;
+        script.src = asset("MyMoneroCoreCpp_WASM.js");
         script.async = true;
         script.onload = () => resolve();
-        script.onerror = () => reject(new Error("Bundled Feelcoin crypto engine is missing."));
+        script.onerror = () => reject(new Error("ENGINE_SCRIPT_ASSET_UNAVAILABLE"));
         document.head.appendChild(script);
       });
     }
-    if (!window.MyMoneroClient) throw new Error("Bundled Feelcoin crypto engine failed to load.");
-    return window.MyMoneroClient({ locateFile: file => new URL("wallet-core/" + file, document.baseURI).href });
+    if (!window.MyMoneroClient) throw new Error("ENGINE_SCRIPT_FACTORY_MISSING");
+    try {
+      return await window.MyMoneroClient({ locateFile: file => asset(file) });
+    } catch {
+      // Do not echo engine-provided error text: it might contain wallet data.
+      throw new Error("ENGINE_FACTORY_INIT_FAILED");
+    }
   })();
   try { return await corePromise; } catch (error) { corePromise = null; throw error; }
 }
