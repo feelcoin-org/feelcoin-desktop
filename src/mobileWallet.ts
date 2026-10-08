@@ -18,7 +18,7 @@ type CryptoCore = {
 };
 declare global {
   interface Window {
-    MyMoneroClient?: (config: { locateFile: (file: string) => string }) => Promise<CryptoCore>;
+    MyMoneroClient?: (config: { wasmBinary: Uint8Array; locateFile: (file: string) => string }) => Promise<CryptoCore>;
   }
 }
 const VAULT_PREFIX = "feelcoin.android.vault.v1:";
@@ -186,7 +186,10 @@ export async function feelcoinCore(): Promise<CryptoCore> {
     }
     if (!window.MyMoneroClient) throw new Error("ENGINE_SCRIPT_FACTORY_MISSING");
     try {
-      return await window.MyMoneroClient({ locateFile: file => asset(file) });
+      return await window.MyMoneroClient({
+        wasmBinary: new Uint8Array(bytes),
+        locateFile: file => asset(file)
+      });
     } catch (error) {
       // Expose only the exception class, never the exception message or stack:
       // Emscripten messages can contain sensitive wallet material.
