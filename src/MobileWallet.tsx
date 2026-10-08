@@ -20,13 +20,14 @@ export default function MobileWallet() {
   const [opened, setOpened] = useState<Opened | null>(null);
   const [busy, setBusy] = useState(false);
   const [coreStatus, setCoreStatus] = useState("Preparing offline wallet engine…");
+  const [coreErrorCode, setCoreErrorCode] = useState("");
   const [message, setMessage] = useState("");
 
   useEffect(() => {
     let active = true;
     void feelcoinCore()
-      .then(() => { if (active) setCoreStatus("Local Feelcoin crypto engine ready"); })
-      .catch(() => { if (active) setCoreStatus("Local crypto initialization failed — report this screen"); });
+      .then(() => { if (active) { setCoreStatus("Local Feelcoin crypto engine ready"); setCoreErrorCode(""); } })
+      .catch((error: unknown) => { if (active) { setCoreStatus("Local crypto initialization failed — report this screen"); const text = error instanceof Error ? error.message : String(error); setCoreErrorCode(/content security policy|unsafe-eval|eval|compileerror/i.test(text) ? "CSP_OR_WASM_COMPILE" : /fetch|network|404|failed to load|missing/i.test(text) ? "ENGINE_ASSET_LOAD" : /memory|allocation/i.test(text) ? "WASM_MEMORY" : "ENGINE_INIT_OTHER"); } });
     return () => { active = false; };
   }, []);
 
@@ -140,7 +141,7 @@ export default function MobileWallet() {
         ))}
       </div>
       <section className="fm-card">
-        <p className="fm-wallet-engine">◈ {coreStatus}</p>
+        <p className="fm-wallet-engine">◈ {coreStatus}{coreErrorCode ? ` (diagnostic: ${coreErrorCode})` : ""}</p>
         <form className="fm-wallet-form" onSubmit={event => void submit(event)} autoComplete="off">
           <label htmlFor="feel-wallet-name">Wallet name</label>
           {mode === "open" && knownWallets.length > 0 ? (
