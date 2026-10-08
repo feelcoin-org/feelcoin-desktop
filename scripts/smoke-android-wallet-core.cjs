@@ -8,10 +8,10 @@ const assert = require("node:assert/strict");
   const js = require("node:fs").readFileSync(path.join(dir, "MyMoneroCoreCpp_WASM.js"), "utf8");
   assert(!js.includes("new Function("), "Unsafe dynamic invoker remains in crypto runtime");
   const factory = require(path.join(dir, "MyMoneroCoreCpp_WASM.js"));
-  assert.equal(typeof factory, "function");
+  assert.equal(typeof factory, "function", `WASM factory exported ${typeof factory}; keys=${Object.keys(factory || {}).slice(0,8).join(",")}`);
   const core = await factory({locateFile: file => path.join(dir, file)});
-  assert.equal(typeof core.newly_created_wallet, "function");
-  assert.equal(typeof core.seed_and_keys_from_mnemonic, "function");
+  assert.equal(typeof core.newly_created_wallet, "function", `Wallet creation method is ${typeof core.newly_created_wallet}; exported methods=${Object.keys(core || {}).filter(k=>k.includes("wallet")).slice(0,8).join(",")}`);
+  assert.equal(typeof core.seed_and_keys_from_mnemonic, "function", `Seed recovery method is ${typeof core.seed_and_keys_from_mnemonic}`);
   const decode = raw => {
     const result = typeof raw === "string" ? JSON.parse(raw) : raw;
     if (!result || result.err_msg || result.error) throw new Error("FEEL crypto engine rejected wallet operation");
