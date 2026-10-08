@@ -54,7 +54,7 @@ jobs:
       - name: Verify TypeScript and UI
         run: npm run build
       - name: Generate Android launcher icons from official Feelcoin logo
-        run: npx tauri icon public/feelcoin-logo.png
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
       - name: Initialize Android target
         run: npx tauri android init --ci
       - name: Build ARM64 debug APK
