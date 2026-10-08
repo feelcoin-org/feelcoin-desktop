@@ -7,7 +7,15 @@ const assert = require("node:assert/strict");
   // Reject the eval-based runtime even if the browser would accept it.
   const js = require("node:fs").readFileSync(path.join(dir, "MyMoneroCoreCpp_WASM.js"), "utf8");
   assert(!js.includes("new Function("), "Unsafe dynamic invoker remains in crypto runtime");
-  const factory = require(path.join(dir, "MyMoneroCoreCpp_WASM.js"));
+  // The app is type=module; Node's require(esm.js) returns an empty namespace.
+  // Run the pinned browser classic script as CommonJS for this Node-only smoke.
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "feelcoin-wallet-smoke-"));
+  const classic = path.join(tempDir, "crypto.cjs");
+  fs.copyFileSync(path.join(dir, "MyMoneroCoreCpp_WASM.js"), classic);
+  const factory = require(classic);
+  process.on("exit", () => fs.rmSync(tempDir, {recursive:true, force:true}));
   assert.equal(typeof factory, "function", `WASM factory exported ${typeof factory}; keys=${Object.keys(factory || {}).slice(0,8).join(",")}`);
   const core = await factory({locateFile: file => path.join(dir, file)});
   assert.equal(typeof core.newly_created_wallet, "function", `Wallet creation method is ${typeof core.newly_created_wallet}; exported methods=${Object.keys(core || {}).filter(k=>k.includes("wallet")).slice(0,8).join(",")}`);
