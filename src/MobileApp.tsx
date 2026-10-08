@@ -101,7 +101,7 @@ export default function MobileApp(){
  function open(url:string){void invoke("mobile_open_link",{url}).catch(()=>setError("Could not open this link."));}
  const hasMiner=!!address&&!!stats;
  return <div className="fm">
-  <header className="fm-header"><div className="fm-brand"><img alt="Official Feelcoin logo" src="/feelcoin-logo.png"/><div><b>FEELCOIN</b><small>ANDROID ALPHA</small></div></div><span className="fm-pill" title="Native wallet remote-node connection is not implemented in this alpha"><i style={{background:"#e7aa62"}}/>WALLET NOT CONNECTED</span></header>
+  <header className="fm-header"><div className="fm-brand"><img alt="Official Feelcoin logo" src="/feelcoin-logo.png"/><div><b>FEELCOIN</b><small>ANDROID BETA</small></div></div><span className="fm-pill" title="Local wallet keys are on-device; remote-node synchronization is not yet available"><i style={{background:"#e7aa62"}}/>WALLET NOT SYNCED</span></header>
   <main className="fm-main">
    {tab==="mining"&&<>
     <p className="fm-kicker">YOUR MINERS. YOUR FEEL. ANYWHERE.</p><h1>Mining <em>Watch.</em></h1><p className="fm-lead">Real pool statistics. No phone mining, and no recovery seed required.</p>
@@ -170,7 +170,7 @@ export default function MobileApp(){
    {tab==="network"&&<>
     <p className="fm-kicker">LIVE BLOCKCHAIN STATUS</p><h1>Feelcoin <em>Network.</em></h1>
     <p className="fm-lead">Network data from the official explorer and mining pool. Node visibility is not the same as wallet synchronization.</p>
-    <section className="fm-card"><b>Wallet connection</b><p>Native Android wallet engine not yet connected. The future wallet will use a remote node, with signing and keys kept on the phone. No local daemon required.</p></section>
+    <section className="fm-card"><b>Wallet connection</b><p>Local wallet creation and seed recovery are handled on the phone. Blockchain balance synchronization and transaction broadcasting via a remote node are not yet connected. No local daemon required.</p></section>
     <section className="fm-card fm-network">
      <div><span>Network height</span><b>{fmtNum(chain?.info?.height??nodes?.network?.height??stats?.network_height)}</b></div>
      <div><span>Network hashrate</span><b>{fmtHash(stats?.network_hashrate??((chain?.info?.difficulty&&chain?.info?.target)?chain.info.difficulty/chain.info.target:undefined))}</b></div>

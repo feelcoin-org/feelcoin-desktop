@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+"use strict";
+const path = require("node:path");
+const assert = require("node:assert/strict");
+(async () => {
+  const dir = path.join(process.cwd(), "public/wallet-core");
+  // Reject the eval-based runtime even if the browser would accept it.
+  const js = require("node:fs").readFileSync(path.join(dir, "MyMoneroCoreCpp_WASM.js"), "utf8");
+  assert(!js.includes("new Function("), "Unsafe dynamic invoker remains in crypto runtime");
+  const factory = require(path.join(dir, "MyMoneroCoreCpp_WASM.js"));
+  assert.equal(typeof factory, "function");
+  const core = await factory({locateFile: file => path.join(dir, file)});
+  assert.equal(typeof core.newly_created_wallet, "function");
+  assert.equal(typeof core.seed_and_keys_from_mnemonic, "function");
+  const decode = raw => {
+    const result = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!result || result.err_msg || result.error) throw new Error("FEEL crypto engine rejected wallet operation");
+    return result;
+  };
+  const value = (obj, ...fields) => fields.map(key => obj[key]).find(value => typeof value === "string" && value.length > 0);
+  const created = decode(core.newly_created_wallet("en-US", "MAINNET"));
+  const address = value(created, "address", "address_string");
+  const seed = value(created, "mnemonic", "mnemonic_string");
+  assert.match(address, /^[1-9A-HJ-NP-Za-km-z]{90,110}$/);
+  assert(seed && seed.split(/\s+/).length >= 12, "Wallet creation returned no seed");
+  const recovered = decode(core.seed_and_keys_from_mnemonic(seed, "MAINNET"));
+  assert.equal(value(recovered, "address", "address_string"), address, "Wallet seed did not restore the same address");
+  console.log("PASS: offline Feelcoin engine initialized; MAINNET wallet generated; seed recovery reproduces identical FEEL address.");
+})().catch(error => {
+  console.error("FAIL: wallet engine cannot generate and restore the same wallet:", error.message);
+  process.exitCode = 1;
+});

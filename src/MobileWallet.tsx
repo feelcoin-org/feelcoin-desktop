@@ -26,7 +26,7 @@ export default function MobileWallet() {
     let active = true;
     void feelcoinCore()
       .then(() => { if (active) setCoreStatus("Local Feelcoin crypto engine ready"); })
-      .catch(() => { if (active) setCoreStatus("Crypto engine unavailable — check APK package"); });
+      .catch(() => { if (active) setCoreStatus("Local crypto initialization failed — report this screen"); });
     return () => { active = false; };
   }, []);
 
@@ -76,7 +76,7 @@ export default function MobileWallet() {
     } catch (error) {
       const info = error instanceof Error ? error.message : "Wallet operation failed.";
       // Never display crypto-engine-provided details that might echo user seed material.
-      setMessage(/engine|mnemonic|wasm/i.test(info) ? "Wallet engine could not complete the operation. Verify the recovery phrase and try again." : info);
+      setMessage(/engine|mnemonic|wasm/i.test(info) ? "Local wallet engine failed. Please report this error; seed and keys must never be shared." : info);
     } finally {
       setBusy(false);
     }
@@ -174,7 +174,7 @@ export default function MobileWallet() {
         {message && <p className="fm-wallet-message" role="alert">{message}</p>}
       </section>
       <section className="fm-card">
-        <b>Private alpha • local wallet test</b>
+        <b>Private beta • local wallet test</b>
         <p>Passwords and private keys are stored only in a password-encrypted device vault. Android Keystore integration, balance scanning, sending and full device recovery testing are pending. Test with an empty wallet; do not use significant funds.</p>
       </section>
     </>
