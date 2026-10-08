@@ -27,7 +27,13 @@ export default function MobileWallet() {
     let active = true;
     void feelcoinCore()
       .then(() => { if (active) { setCoreStatus("Local Feelcoin crypto engine ready"); setCoreErrorCode(""); } })
-      .catch((error: unknown) => { if (active) { setCoreStatus("Local crypto initialization failed — report this screen"); const text = error instanceof Error ? error.message : String(error); setCoreErrorCode(/content security policy|unsafe-eval|refused to evaluate|blocked by csp/i.test(text) ? "CSP_BLOCKED" : /compileerror|webassembly\.compile|wasm.*compil/i.test(text) ? "WASM_COMPILE_FAILED" : /fetch|network|404|failed to load|missing/i.test(text) ? "ENGINE_ASSET_LOAD" : /memory|allocation/i.test(text) ? "WASM_MEMORY" : "ENGINE_INIT_OTHER"); } });
+      .catch((error: unknown) => {
+        if (!active) return;
+        setCoreStatus("Local crypto initialization failed — report diagnostic code");
+        const code = error instanceof Error ? error.message : "ENGINE_INIT_UNKNOWN";
+        // Only display fixed diagnostic identifiers; never reveal wallet secrets.
+        setCoreErrorCode(/^ENGINE_[A-Z_]+$/.test(code) ? code : "ENGINE_INIT_OTHER");
+      });
     return () => { active = false; };
   }, []);
 
