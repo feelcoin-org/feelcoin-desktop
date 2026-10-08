@@ -118,7 +118,7 @@ async function decrypt(value: string, password: string): Promise<LocalWallet> {
   try {
     const key = await keyFromPassword(password, salt, ["decrypt"]);
     const plaintext = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv }, key, unbase64(envelope.data)
+      { name: "AES-GCM", iv: iv as BufferSource }, key, unbase64(envelope.data) as BufferSource
     );
     return normalize(JSON.parse(decoder.decode(plaintext)));
   } catch {
