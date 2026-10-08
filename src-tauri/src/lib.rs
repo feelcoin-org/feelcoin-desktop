@@ -224,6 +224,78 @@ fn wallet_rpc_status() -> WalletRpcStatus {
 }
 
 const MOBILE_POOL: &str = "https://pool.feelcoin.org";
+const MOBILE_EXPLORER: &str = "https://explorer.feelcoin.org";
+
+// Explorer queries are read-only, strictly constrained to our official domain.
+// No wallet credentials, secret keys, or arbitrary URLs are accepted here.
+async fn explorer_json(path: &str) -> Result<Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "Unable to initialize the secure explorer connection".to_string())?;
+    let response = client
+        .get(format!("{MOBILE_EXPLORER}{path}"))
+        .send()
+        .await
+        .map_err(|_| "Official explorer is unavailable".to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("Explorer returned HTTP {}", response.status().as_u16()));
+    }
+    if response.content_length().is_some_and(|size| size > 2_000_000) {
+        return Err("Explorer response is too large".into());
+    }
+    let body = response
+        .bytes()
+        .await
+        .map_err(|_| "Unable to read explorer response".to_string())?;
+    if body.len() > 2_000_000 {
+        return Err("Explorer response is too large".into());
+    }
+    serde_json::from_slice(&body).map_err(|_| "Explorer returned invalid JSON".to_string())
+}
+
+#[tauri::command]
+async fn mobile_explorer_home() -> Result<Value, String> {
+    let data = explorer_json("/api/home").await?;
+    if !data.get("info").is_some_and(Value::is_object)
+        || !data.get("blocks").is_some_and(Value::is_array)
+    {
+        return Err("Explorer returned incomplete blockchain information".into());
+    }
+    Ok(data)
+}
+
+#[tauri::command]
+async fn mobile_explorer_search(query: String) -> Result<Value, String> {
+    let query = query.trim();
+    // Search by decimal block height or exact 64-character hexadecimal block/tx hash.
+    let is_height = !query.is_empty()
+        && query.len() <= 12
+        && query.bytes().all(|b| b.is_ascii_digit());
+    let is_hash = query.len() == 64 && query.bytes().all(|b| b.is_ascii_hexdigit());
+    if !is_height && !is_hash {
+        return Err("Enter a block height or a 64-character block/transaction hash".into());
+    }
+    let data = explorer_json(&format!("/api/search?q={query}")).await?;
+    if !["block-height", "block-hash", "transaction"].iter().any(|kind| {
+        data.get("type").and_then(Value::as_str) == Some(*kind)
+    }) {
+        return Err("Explorer did not return a recognized block or transaction".into());
+    }
+    Ok(data)
+}
+
+#[tauri::command]
+async fn mobile_network_status() -> Result<Value, String> {
+    let data = explorer_json("/network-status.json").await?;
+    if !data.get("network").is_some_and(Value::is_object)
+        || !data.get("nodes").is_some_and(Value::is_object)
+    {
+        return Err("Official node status feed is unavailable".into());
+    }
+    Ok(data)
+}
 
 fn check_public_address(address: &str) -> Result<(), String> {
     if address.len() < 90 || address.len() > 110
@@ -311,6 +383,9 @@ pub fn run() {
             mobile_pool_stats,
             mobile_pool_workers,
             mobile_pool_payments,
+            mobile_explorer_home,
+            mobile_explorer_search,
+            mobile_network_status,
             mobile_open_link
         ])
         .run(tauri::generate_context!())
