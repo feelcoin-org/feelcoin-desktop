@@ -153,7 +153,7 @@ export async function feelcoinCore(): Promise<CryptoCore> {
     if (!window.MyMoneroClient) {
       await new Promise<void>((resolve, reject) => {
         const script = document.createElement("script");
-        script.src = "/wallet-core/MyMoneroCoreCpp_WASM.js";
+        script.src = new URL("wallet-core/MyMoneroCoreCpp_WASM.js", document.baseURI).href;
         script.async = true;
         script.onload = () => resolve();
         script.onerror = () => reject(new Error("Bundled Feelcoin crypto engine is missing."));
@@ -161,7 +161,7 @@ export async function feelcoinCore(): Promise<CryptoCore> {
       });
     }
     if (!window.MyMoneroClient) throw new Error("Bundled Feelcoin crypto engine failed to load.");
-    return window.MyMoneroClient({ locateFile: file => "/wallet-core/" + file });
+    return window.MyMoneroClient({ locateFile: file => new URL("wallet-core/" + file, document.baseURI).href });
   })();
   try { return await corePromise; } catch (error) { corePromise = null; throw error; }
 }
