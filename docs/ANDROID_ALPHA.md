@@ -1,21 +1,64 @@
-# Feelcoin Android — private alpha
+# Feelcoin Android — private local-wallet test APK
 
-The Android application uses the existing official Feelcoin logo from `public/feelcoin-logo.png`. The launcher icon is generated from that image in CI. Its installed name is **Feelcoin**.
+**Not a public beta. Do not fund or trust this experimental wallet with valuable assets.**
 
-## Current features
+The official gold Feelcoin icon is bundled in the APK. The Android package is `org.feelcoin.wallet`.
+Five tabs: Wallet, Mining, Explorer, Network, Settings.
 
-Five tabs: Wallet, Mining, Explorer, Network and Settings. Pool payouts are shown within Mining. The official web wallet is opened in the device browser for opening, creating or restoring wallets. Explorer opens the official block explorer. Network shows available read-only pool-reported network statistics.
+## What the private wallet APK now attempts
 
-The application has **no Android daemon, no local mining, and no native wallet engine**. The existing desktop code still includes localhost daemon and wallet-RPC functions for desktop use; those are not the Android wallet implementation.
+- Create a **real Feelcoin mainnet wallet** on the phone using the exact official
+  `feelcoin-org/feelcoin-web-wallet` MyMonero/WASM engine.
+- Display the recovery words for offline backup, then require acknowledgement.
+- Store a password-encrypted (AES-256-GCM, PBKDF2-SHA256 310,000 iterations,
+  random salt and IV) wallet vault in the app's WebView local storage.
+- Open the vault after restart; restore the original address from recovery words.
+- Display and copy the public receiving address.
+- Search blocks / TX IDs, recent blocks, reported peer connections, official nodes,
+  network metrics and mining-worker/payout information.
 
-## Remote-node wallet architecture (planned; NOT implemented)
+### Honest feature boundaries
 
-The future Android wallet must connect to a remote Feelcoin daemon over TLS for synchronization and broadcasting. A remote daemon is not a custodial wallet service. Wallet secrets must be generated, encrypted, stored and used for signing locally on the device; never send a recovery phrase, private spend key, or wallet password to a remote daemon or pool. Implement audited native wallet logic and secure Android key storage before enabling create/restore/send in the native UI.
+A remote daemon is **not bundled** into the APK. The current wallet's key
+operations are offline/on-device; blockchain scanning, balance calculations,
+transaction history and transaction signing/broadcasting remain **disabled**
+in the Android test wallet until integrated and independently tested. The
+Explorer and Network APIs are read-only blockchain monitoring, **not wallet
+synchronization**. No local mining or faucet. The app contains no web-wallet
+seed submission path.
 
-Do not mistake a remote daemon's `get_info` response for wallet synchronization or spend capability. A public remote node can see the connecting IP and may learn wallet-related query metadata. Verify the selected endpoint, certificate validation and blockchain/network identity before trusting it.
+The encrypted vault uses password-derived encryption in WebView localStorage;
+**Android Keystore-based wrapping, secure-screen controls, backup exclusion,
+and audit have not yet been implemented**. Never depend on a single device
+copy. Never test with a seed holding valuable funds. Never send a private
+key, seed or wallet password to support or screenshots.
 
-## Testing and release
+## Pinned official WASM source
 
-Build using the `Build Android Alpha APK` workflow on `feature/android-wallet`. Download its debug APK artifact for private device testing only. **No public release** until the wallet engine, security review, device tests, signing and recovery tests are complete. Never use this alpha to store funds.
+The Android workflow checks out:
+- `feelcoin-org/feelcoin-web-wallet` at commit
+  `4cbbbdd5ea5de120ecbc8de5e57410b5b11462a5`
+- JS Git blob `425cdbefeba8d46afc7c7d7d8c2e518c023ccd07`
+- WASM Git blob `1cec3548d6e83cc70bbb2f21009d07711cbc5194`
 
-Read-only pool queries use HTTPS and a public FEEL monitoring address; pool balances are not wallet balances. Some metrics may be unavailable. Wallet access currently launches `https://wallet.feelcoin.org` in the browser.
+It validates both blobs before packaging them under
+`public/wallet-core/`. The APK runs the code from within its own package:
+do **not** load a remotely hosted, mutable cryptocurrency-signing script.
+
+## Suggested device tests
+
+1. Install the latest Android Actions APK on a disposable/test device.
+2. Create an **empty** wallet; write down the recovery words; acknowledge backup.
+3. Lock, reopen using the password and verify the exact same FEEL address.
+4. Force-close the Android application, reopen and unlock it again.
+5. Recover those words with a **different wallet name** in the APK. Compare
+   the derived address to the original wallet and the official desktop wallet.
+6. Try an invalid password, invalid seed and duplicate wallet name; verify
+   the existing wallet cannot be overwritten.
+7. Confirm Explorer searches and node statuses match the official
+   `explorer.feelcoin.org` website.
+
+Return only **nonsecret** results: Android version, FEEL public address (optional),
+pass/fail, screenshots **without passwords, seed words or private keys**.
+Never release publicly without security and device testing and stable
+release signing.
