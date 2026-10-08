@@ -290,7 +290,7 @@ h3 {
 }
 
 .primary:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: .7;
 }
 
@@ -517,8 +517,8 @@ footer {
   background: rgba(229, 190, 82, .04);
 }
 
-.secondary:hover,
-.primary:hover {
+.secondary:not(:disabled):hover,
+.primary:not(:disabled):hover {
   filter: brightness(1.06);
 }
 
@@ -875,7 +875,7 @@ textarea:focus {
 button:disabled,
 input:disabled,
 textarea:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: .62;
 }
 
@@ -900,7 +900,7 @@ textarea:disabled {
 }
 
 button:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: .68;
 }
 
