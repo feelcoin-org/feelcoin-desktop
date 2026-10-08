@@ -14,6 +14,10 @@ const assert = require("node:assert/strict");
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "feelcoin-wallet-smoke-"));
   const classic = path.join(tempDir, "crypto.cjs");
   fs.copyFileSync(path.join(dir, "MyMoneroCoreCpp_WASM.js"), classic);
+  // Node 24's built-in fetch attempts to fetch a filesystem pathname as a URL.
+  // The real Android WebView uses HTTP(S), but this isolated Node smoke must
+  // select Emscripten's built-in local filesystem loader instead.
+  global.fetch = undefined;
   const factory = require(classic);
   process.on("exit", () => fs.rmSync(tempDir, {recursive:true, force:true}));
   assert.equal(typeof factory, "function", `WASM factory exported ${typeof factory}; keys=${Object.keys(factory || {}).slice(0,8).join(",")}`);
