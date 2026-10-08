@@ -289,6 +289,7 @@ fn mobile_open_link(app: tauri::AppHandle, url: String) -> Result<(), String> {
         "https://wallet.feelcoin.org",
         "https://feelcoin.org",
         "https://pool.feelcoin.org",
+        "https://explorer.feelcoin.org",
         "https://github.com/feelcoin-org/feelcoin-desktop",
     ];
     if !approved.contains(&url.as_str()) {
