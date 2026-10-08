@@ -68,8 +68,8 @@ function normalize(raw: unknown): LocalWallet {
     privateViewKey: pick("privateViewKey", "sec_viewKey_string", "private_view_key"),
     publicSpendKey: pick("publicSpendKey", "pub_spendKey_string", "public_spend_key"),
     publicViewKey: pick("publicViewKey", "pub_viewKey_string", "public_view_key"),
-    restoreHeight: 0,
-    viewOnly: false
+    restoreHeight: Number.isSafeInteger(result.restoreHeight) && Number(result.restoreHeight) >= 0 ? Number(result.restoreHeight) : 0,
+    viewOnly: result.viewOnly === true
   };
 }
 function cryptographicallySecureRandom(length: number): Uint8Array<ArrayBuffer> {
