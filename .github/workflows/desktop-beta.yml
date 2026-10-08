@@ -1,0 +1,53 @@
+name: Build Desktop Beta Packages
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/desktop-beta.yml
+permissions:
+  contents: read
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x86_64
+            os: ubuntu-22.04
+            args: --bundles deb,appimage
+          - platform: windows-x64
+            os: windows-latest
+            args: --bundles nsis
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Install frontend dependencies
+        run: npm install
+      - name: Set Beta version
+        shell: bash
+        run: |
+          node -e 'const fs=require("fs"); for (const p of ["package.json","src-tauri/tauri.conf.json"]) { const j=JSON.parse(fs.readFileSync(p,"utf8")); j.version="0.2.0-beta.1"; fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n"); }'
+          sed -i.bak '0,/version = "0.1.0"/s//version = "0.2.0-beta.1"/' src-tauri/Cargo.toml
+      - name: Build
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: ${{ matrix.args }}
+      - name: Upload generated bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: feelcoin-desktop-beta-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.exe
+          if-no-files-found: error
