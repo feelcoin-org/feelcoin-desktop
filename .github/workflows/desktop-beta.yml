@@ -38,6 +38,14 @@ jobs:
         run: |
           node -e 'const fs=require("fs"); for (const p of ["package.json","src-tauri/tauri.conf.json"]) { const j=JSON.parse(fs.readFileSync(p,"utf8")); j.version="0.2.0-beta.1"; fs.writeFileSync(p,JSON.stringify(j,null,2)+"\n"); }'
           sed -i.bak '0,/version = "0.1.0"/s//version = "0.2.0-beta.1"/' src-tauri/Cargo.toml
+      - name: Generate platform icons from official Feelcoin logo
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+      - name: Verify generated platform icons
+        shell: bash
+        run: |
+          test -s src-tauri/icons/icon.ico
+          test -s src-tauri/icons/32x32.png
+          test -s src-tauri/icons/128x128.png
       - name: Build
         uses: tauri-apps/tauri-action@v0
         with:
