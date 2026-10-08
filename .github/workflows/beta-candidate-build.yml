@@ -1,0 +1,216 @@
+name: Feelcoin Desktop Beta Candidate Builds
+
+on:
+  push:
+    branches: ["beta-desktop-rc"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-alpha:
+    name: Linux Beta Candidate
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Feelcoin Desktop
+        uses: actions/checkout@v5
+
+      - name: Install desktop build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl \
+            file \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        run: npm install
+
+      - name: Verify bundled Feelcoin Core
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          daemon="src-tauri/resources/bin/feelcoind"
+          wallet_rpc="src-tauri/resources/bin/feelcoin-wallet-rpc"
+
+          test -f "$daemon"
+          test -f "$wallet_rpc"
+
+          chmod +x "$daemon" "$wallet_rpc"
+
+          echo "=== Feelcoin Core versions ==="
+          "$daemon" --version
+          "$wallet_rpc" --version
+
+          echo
+          echo "=== Runtime dependency check ==="
+
+          if ldd "$daemon" | grep -q "not found"; then
+            echo "ERROR: feelcoind has missing runtime libraries"
+            ldd "$daemon" | grep "not found"
+            exit 1
+          fi
+
+          if ldd "$wallet_rpc" | grep -q "not found"; then
+            echo "ERROR: feelcoin-wallet-rpc has missing runtime libraries"
+            ldd "$wallet_rpc" | grep "not found"
+            exit 1
+          fi
+
+          echo
+          echo "=== Bundled Core SHA256 ==="
+          sha256sum "$daemon" "$wallet_rpc"
+
+      - name: Generate application icons
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+
+      - name: Build Linux DEB
+        run: npx tauri build --bundles deb
+
+      - name: Build Linux AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: npx tauri build --bundles appimage
+
+      - name: Create Linux checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p beta-output
+          find src-tauri/target/release/bundle -type f \
+            \( -name "*.deb" -o -name "*.AppImage" \) \
+            -exec cp {} beta-output/ \;
+          cd beta-output
+          test -n "$(find . -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$(find . -maxdepth 1 -type f -name '*.AppImage' -print -quit)"
+          sha256sum *.deb *.AppImage > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload Linux Beta Candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: Feelcoin-Desktop-Beta Candidate-Linux-x64
+          path: beta-output/*
+          if-no-files-found: error
+
+  windows-alpha:
+    name: Windows Beta Candidate
+    runs-on: windows-2025
+    steps:
+      - name: Checkout Feelcoin Desktop
+        uses: actions/checkout@v5
+
+      - name: Setup MSYS2 for Feelcoin Core
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ccache
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zeromq
+            mingw-w64-x86_64-libsodium
+            mingw-w64-x86_64-hidapi
+            mingw-w64-x86_64-protobuf-c
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-unbound
+            git
+
+      - name: Build Feelcoin Core v0.2.1 for Windows
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v0.2.1 --recurse-submodules https://github.com/feelcoin-org/feelcoin.git core
+          cd core
+          git submodule update --init --recursive --force
+          make release-static-win64 -j2
+          daemon="$(find build -type f -name feelcoind.exe -print -quit)"
+          wallet_rpc="$(find build -type f -name feelcoin-wallet-rpc.exe -print -quit)"
+          test -n "$daemon"
+          test -n "$wallet_rpc"
+          mkdir -p ../src-tauri/resources/bin
+          rm -f ../src-tauri/resources/bin/feelcoind
+          rm -f ../src-tauri/resources/bin/feelcoin-wallet-rpc
+          rm -f ../src-tauri/resources/lib/*.so*
+          cp "$daemon" ../src-tauri/resources/bin/feelcoind.exe
+          cp "$wallet_rpc" ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe
+          sha256sum ../src-tauri/resources/bin/feelcoind.exe ../src-tauri/resources/bin/feelcoin-wallet-rpc.exe
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install frontend dependencies
+        shell: pwsh
+        run: npm install
+
+      - name: Generate application icons
+        shell: pwsh
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          $maxAttempts = 3
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "NSIS packaging attempt $attempt of $maxAttempts"
+            npx tauri build --bundles nsis
+            if ($LASTEXITCODE -eq 0) {
+              break
+            }
+            if ($attempt -eq $maxAttempts) {
+              throw "Windows NSIS packaging failed after $maxAttempts attempts."
+            }
+            Start-Sleep -Seconds 15
+          }
+
+      - name: Create Windows checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path beta-output | Out-Null
+          Get-ChildItem -Path "src-tauri/target/release/bundle/nsis" -Filter "*.exe" |
+            Copy-Item -Destination "beta-output"
+          $files = Get-ChildItem -Path "beta-output" -File
+          if ($files.Count -eq 0) { throw "No Windows installer found" }
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLower()
+            "$hash  $($file.Name)"
+          }
+          $lines | Set-Content -Encoding ascii "beta-output/SHA256SUMS.txt"
+          foreach ($file in $files) {
+            $expected = (Get-FileHash -Algorithm SHA256 $file.FullName).Hash.ToLower()
+            if (-not (Select-String -Path "beta-output/SHA256SUMS.txt" -SimpleMatch "$expected  $($file.Name)")) {
+              throw "Checksum verification failed for $($file.Name)"
+            }
+          }
+          Get-Content "beta-output/SHA256SUMS.txt"
+
+      - name: Upload Windows Beta Candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: Feelcoin-Desktop-Beta Candidate-Windows-x64
+          path: beta-output/*
+          if-no-files-found: error

@@ -540,7 +540,7 @@ function App() {
           <img className="coin-mark" src="/feelcoin-logo.png" alt="Feelcoin logo" />
           <div>
             <strong>FEELCOIN</strong>
-            <span>DESKTOP ALPHA</span>
+            <span>DESKTOP BETA</span>
           </div>
         </div>
 
@@ -565,7 +565,7 @@ function App() {
       <section className="content">
         <header className="topbar">
           <div>
-            <p className="eyebrow">OFFICIAL FEELCOIN WALLET · ALPHA</p>
+            <p className="eyebrow">OFFICIAL FEELCOIN WALLET · BETA</p>
             <h1>Feelcoin Desktop</h1>
             <p className="subtle">Self-contained local wallet for the Feelcoin community.</p>
           </div>
