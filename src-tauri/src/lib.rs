@@ -223,7 +223,6 @@ fn wallet_rpc_status() -> WalletRpcStatus {
     }
 }
 
-
 const MOBILE_POOL: &str = "https://pool.feelcoin.org";
 
 fn check_public_address(address: &str) -> Result<(), String> {
@@ -246,11 +245,17 @@ async fn request_pool(path: &str, wallet_address: Option<&str>) -> Result<Value,
         check_public_address(address)?;
         req = req.header(reqwest::header::COOKIE, format!("wa={address}"));
     }
-    let response = req.send().await.map_err(|_| "The official mining pool is unreachable".to_string())?;
+    let response = req
+        .send()
+        .await
+        .map_err(|_| "The official mining pool is unreachable".to_string())?;
     if !response.status().is_success() {
         return Err(format!("Pool HTTP error {}", response.status().as_u16()));
     }
-    response.json::<Value>().await.map_err(|_| "Could not decode pool response".to_string())
+    response
+        .json::<Value>()
+        .await
+        .map_err(|_| "Could not decode pool response".to_string())
 }
 
 #[tauri::command]
@@ -261,7 +266,9 @@ async fn mobile_pool_stats(wallet_address: Option<String>) -> Result<Value, Stri
 #[tauri::command]
 async fn mobile_pool_workers(wallet_address: String) -> Result<Value, String> {
     let value = request_pool("/workers", Some(&wallet_address)).await?;
-    if !value.is_array() { return Err("Invalid worker list".into()); }
+    if !value.is_array() {
+        return Err("Invalid worker list".into());
+    }
     Ok(value)
 }
 
@@ -269,7 +276,9 @@ async fn mobile_pool_workers(wallet_address: String) -> Result<Value, String> {
 async fn mobile_pool_payments(wallet_address: String) -> Result<Value, String> {
     let value = request_pool("/miner-payments", Some(&wallet_address)).await?;
     let list = value.get("payments").cloned().unwrap_or(json!([]));
-    if !list.is_array() { return Err("Invalid payment history".into()); }
+    if !list.is_array() {
+        return Err("Invalid payment history".into());
+    }
     Ok(list)
 }
 
@@ -285,7 +294,8 @@ fn mobile_open_link(app: tauri::AppHandle, url: String) -> Result<(), String> {
     if !approved.contains(&url.as_str()) {
         return Err("Link is not on the official allowlist".into());
     }
-    app.opener().open_url(url, None::<&str>)
+    app.opener()
+        .open_url(url, None::<&str>)
         .map_err(|_| "Could not launch default browser".to_string())
 }
 
