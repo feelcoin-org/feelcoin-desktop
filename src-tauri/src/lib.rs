@@ -223,13 +223,176 @@ fn wallet_rpc_status() -> WalletRpcStatus {
     }
 }
 
+const MOBILE_POOL: &str = "https://pool.feelcoin.org";
+const MOBILE_EXPLORER: &str = "https://explorer.feelcoin.org";
+
+// Explorer queries are read-only, strictly constrained to our official domain.
+// No wallet credentials, secret keys, or arbitrary URLs are accepted here.
+async fn explorer_json(path: &str) -> Result<Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(20))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "Unable to initialize the secure explorer connection".to_string())?;
+    let response = client
+        .get(format!("{MOBILE_EXPLORER}{path}"))
+        .send()
+        .await
+        .map_err(|_| "Official explorer is unavailable".to_string())?;
+    if !response.status().is_success() {
+        return Err(format!(
+            "Explorer returned HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+    if response
+        .content_length()
+        .is_some_and(|size| size > 2_000_000)
+    {
+        return Err("Explorer response is too large".into());
+    }
+    let body = response
+        .bytes()
+        .await
+        .map_err(|_| "Unable to read explorer response".to_string())?;
+    if body.len() > 2_000_000 {
+        return Err("Explorer response is too large".into());
+    }
+    serde_json::from_slice(&body).map_err(|_| "Explorer returned invalid JSON".to_string())
+}
+
+#[tauri::command]
+async fn mobile_explorer_home() -> Result<Value, String> {
+    let data = explorer_json("/api/home").await?;
+    if !data.get("info").is_some_and(Value::is_object)
+        || !data.get("blocks").is_some_and(Value::is_array)
+    {
+        return Err("Explorer returned incomplete blockchain information".into());
+    }
+    Ok(data)
+}
+
+#[tauri::command]
+async fn mobile_explorer_search(query: String) -> Result<Value, String> {
+    let query = query.trim();
+    // Search by decimal block height or exact 64-character hexadecimal block/tx hash.
+    let is_height =
+        !query.is_empty() && query.len() <= 12 && query.bytes().all(|b| b.is_ascii_digit());
+    let is_hash = query.len() == 64 && query.bytes().all(|b| b.is_ascii_hexdigit());
+    if !is_height && !is_hash {
+        return Err("Enter a block height or a 64-character block/transaction hash".into());
+    }
+    let data = explorer_json(&format!("/api/search?q={query}")).await?;
+    if !["block-height", "block-hash", "transaction"]
+        .iter()
+        .any(|kind| data.get("type").and_then(Value::as_str) == Some(*kind))
+    {
+        return Err("Explorer did not return a recognized block or transaction".into());
+    }
+    Ok(data)
+}
+
+#[tauri::command]
+async fn mobile_network_status() -> Result<Value, String> {
+    let data = explorer_json("/network-status.json").await?;
+    if !data.get("network").is_some_and(Value::is_object)
+        || !data.get("nodes").is_some_and(Value::is_object)
+    {
+        return Err("Official node status feed is unavailable".into());
+    }
+    Ok(data)
+}
+
+fn check_public_address(address: &str) -> Result<(), String> {
+    if address.len() < 90 || address.len() > 110
+       || !address.bytes().all(|b| matches!(b, b'1'..=b'9' | b'A'..=b'H' | b'J'..=b'N' | b'P'..=b'Z' | b'a'..=b'k' | b'm'..=b'z'))
+    {
+        return Err("Invalid FEEL public address format".into());
+    }
+    Ok(())
+}
+
+async fn request_pool(path: &str, wallet_address: Option<&str>) -> Result<Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(8))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(|_| "Failed to initialize secure pool client".to_string())?;
+    let mut req = client.get(format!("{MOBILE_POOL}{path}"));
+    if let Some(address) = wallet_address {
+        check_public_address(address)?;
+        req = req.header(reqwest::header::COOKIE, format!("wa={address}"));
+    }
+    let response = req
+        .send()
+        .await
+        .map_err(|_| "The official mining pool is unreachable".to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("Pool HTTP error {}", response.status().as_u16()));
+    }
+    response
+        .json::<Value>()
+        .await
+        .map_err(|_| "Could not decode pool response".to_string())
+}
+
+#[tauri::command]
+async fn mobile_pool_stats(wallet_address: Option<String>) -> Result<Value, String> {
+    request_pool("/stats", wallet_address.as_deref()).await
+}
+
+#[tauri::command]
+async fn mobile_pool_workers(wallet_address: String) -> Result<Value, String> {
+    let value = request_pool("/workers", Some(&wallet_address)).await?;
+    if !value.is_array() {
+        return Err("Invalid worker list".into());
+    }
+    Ok(value)
+}
+
+#[tauri::command]
+async fn mobile_pool_payments(wallet_address: String) -> Result<Value, String> {
+    let value = request_pool("/miner-payments", Some(&wallet_address)).await?;
+    let list = value.get("payments").cloned().unwrap_or(json!([]));
+    if !list.is_array() {
+        return Err("Invalid payment history".into());
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+fn mobile_open_link(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    let approved = [
+        "https://wallet.feelcoin.org",
+        "https://feelcoin.org",
+        "https://pool.feelcoin.org",
+        "https://explorer.feelcoin.org",
+        "https://github.com/feelcoin-org/feelcoin-desktop",
+    ];
+    if !approved.contains(&url.as_str()) {
+        return Err("Link is not on the official allowlist".into());
+    }
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|_| "Could not launch default browser".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             network_defaults,
             daemon_info,
-            wallet_rpc_status
+            wallet_rpc_status,
+            mobile_pool_stats,
+            mobile_pool_workers,
+            mobile_pool_payments,
+            mobile_explorer_home,
+            mobile_explorer_search,
+            mobile_network_status,
+            mobile_open_link
         ])
         .run(tauri::generate_context!())
         .expect("error while running Feelcoin Desktop");
