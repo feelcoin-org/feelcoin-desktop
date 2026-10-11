@@ -1,5 +1,9 @@
 # Feelcoin Desktop Wallet 🪙
 
+<p align="center">
+  <a href="https://feelcoin.org"><img src="https://feelcoin.org/assets/feelcoin-logo-v2.png" alt="Official Feelcoin logo" width="144"></a>
+</p>
+
 **Official Feelcoin (FEEL) desktop wallet — Windows & Linux**
 
 **Current release:** [v0.2.0 Beta](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.2.0-beta.1) · **Network:** Feelcoin Mainnet · **Architecture:** x86-64 / AMD64
