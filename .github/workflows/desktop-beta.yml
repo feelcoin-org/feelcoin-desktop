@@ -19,6 +19,12 @@ jobs:
           - platform: windows-x64
             os: windows-latest
             args: --bundles nsis
+          - platform: macos-arm64
+            os: macos-15
+            args: --target aarch64-apple-darwin --bundles dmg
+          - platform: macos-intel
+            os: macos-15-intel
+            args: --target x86_64-apple-darwin --bundles dmg
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -26,6 +32,14 @@ jobs:
         with:
           node-version: '20'
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install macOS Rust target
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            macos-arm64) rustup target add aarch64-apple-darwin ;;
+            macos-intel) rustup target add x86_64-apple-darwin ;;
+          esac
       - name: Linux dependencies
         if: runner.os == 'Linux'
         run: |
@@ -40,7 +54,7 @@ jobs:
           sed -i.bak '0,/version = "0.1.0"/s//version = "0.2.0-beta.1"/' src-tauri/Cargo.toml
       - name: Generate platform icons from official Feelcoin logo
         run: npx tauri icon public/feelcoin-logo.png --fit contain
-      - name: Configure generated icons for Linux and Windows bundlers
+      - name: Configure generated icons for all desktop bundlers
         shell: bash
         run: |
           node - <<'NODE'
@@ -51,7 +65,8 @@ jobs:
             'icons/32x32.png',
             'icons/128x128.png',
             'icons/128x128@2x.png',
-            'icons/icon.ico'
+            'icons/icon.ico',
+            'icons/icon.icns'
           ];
           fs.writeFileSync(path, JSON.stringify(config, null, 2) + '\n');
           NODE
@@ -61,6 +76,9 @@ jobs:
           test -s src-tauri/icons/icon.ico
           test -s src-tauri/icons/32x32.png
           test -s src-tauri/icons/128x128.png
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            test -s src-tauri/icons/icon.icns
+          fi
       - name: Build
         uses: tauri-apps/tauri-action@v0
         with:
@@ -73,4 +91,5 @@ jobs:
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.AppImage
             src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/**/release/bundle/dmg/*.dmg
           if-no-files-found: error
