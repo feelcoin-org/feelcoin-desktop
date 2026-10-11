@@ -1,6 +1,9 @@
 name: Build Desktop Beta Packages
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/desktop-beta.yml
   push:
     branches: [main]
     paths:
