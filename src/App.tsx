@@ -164,6 +164,10 @@ function App() {
   const [walletMessage, setWalletMessage] = useState<string | null>(null);
 
   const [walletName, setWalletName] = useState("");
+  const [savedWalletNames, setSavedWalletNames] = useState<string[]>([]);
+  const [savedWalletsOpen, setSavedWalletsOpen] = useState(false);
+  const [filterSavedWallets, setFilterSavedWallets] = useState(false);
+  const [savedWalletsError, setSavedWalletsError] = useState<string | null>(null);
   const [walletPassword, setWalletPassword] = useState("");
   const [walletPasswordConfirm, setWalletPasswordConfirm] = useState("");
   const [seed, setSeed] = useState("");
@@ -186,6 +190,24 @@ function App() {
     () => (daemon.incoming_connections ?? 0) + (daemon.outgoing_connections ?? 0),
     [daemon.incoming_connections, daemon.outgoing_connections],
   );
+
+  async function loadSavedWalletNames() {
+    try {
+      // Only local wallet file names are requested; no credentials or seeds.
+      const names = await invoke<string[]>("list_local_wallets");
+      setSavedWalletNames(names);
+      setSavedWalletsError(null);
+    } catch {
+      setSavedWalletNames([]);
+      setSavedWalletsError("Could not load saved wallet names. You can still type a name manually.");
+    }
+  }
+
+  useEffect(() => {
+    if (view === "wallet" && !wallet && !recoveryInfo) {
+      void loadSavedWalletNames();
+    }
+  }, [view, wallet, recoveryInfo]);
 
   async function refreshServices(force = false) {
     if (refreshLock.current) return;
@@ -472,6 +494,7 @@ function App() {
 
       // Refresh only after the foreground wallet RPC command has completely ended.
       await refreshServices(true);
+      await loadSavedWalletNames();
     }
   }
 
@@ -669,9 +692,11 @@ function App() {
               <div>
                 <p className="eyebrow">FEELCOIN NETWORK</p>
                 <h2>In Feels We Trust.</h2>
+                <p className="hero-tagline">Your FEEL. Your keys. Your freedom.</p>
                 <p>
-                  One application, one local wallet experience. Feelcoin Desktop starts the
-                  official Feelcoin node and wallet service automatically — no terminal required.
+                  Create, recover, send, and receive FEEL in one secure desktop experience.
+                  Feelcoin Desktop runs the official node and wallet service locally — giving
+                  you full control without the command line.
                 </p>
               </div>
               <img className="hero-symbol" src="/feelcoin-logo.png" alt="Feelcoin" />
@@ -886,16 +911,96 @@ function App() {
                   </>
                 ) : (
                   <div className="form-grid">
-                    <label>
-                      <span>Wallet name</span>
-                      <input
-                        value={walletName}
-                        onChange={(event) => setWalletName(event.target.value)}
-                        placeholder="my-feel-wallet"
-                        autoComplete="off"
-                        disabled={walletOperation !== null}
-                      />
-                    </label>
+                    <div className="wallet-name-field">
+                      <label htmlFor="feelcoin-wallet-name"><span>Wallet name</span></label>
+                      <div
+                        className="wallet-name-picker"
+                        onBlur={(event) => {
+                          if (!event.currentTarget.contains(event.relatedTarget)) {
+                            setSavedWalletsOpen(false);
+                          }
+                        }}
+                      >
+                        <input
+                          id="feelcoin-wallet-name"
+                          value={walletName}
+                          onChange={(event) => {
+                            setWalletName(event.target.value);
+                            setFilterSavedWallets(true);
+                            setSavedWalletsOpen(true);
+                          }}
+                          onFocus={() => {
+                            setFilterSavedWallets(false);
+                            setSavedWalletsOpen(true);
+                            void loadSavedWalletNames();
+                          }}
+                          onClick={() => {
+                            setFilterSavedWallets(false);
+                            setSavedWalletsOpen(true);
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") setSavedWalletsOpen(false);
+                          }}
+                          role="combobox"
+                          aria-autocomplete="list"
+                          aria-haspopup="listbox"
+                          aria-controls="feelcoin-saved-wallet-options"
+                          aria-expanded={savedWalletsOpen && savedWalletNames.length > 0}
+                          placeholder="my-feel-wallet"
+                          autoComplete="off"
+                          spellCheck={false}
+                          disabled={walletOperation !== null}
+                        />
+                        <button
+                          type="button"
+                          className="wallet-name-trigger"
+                          aria-label="Show saved wallets"
+                          aria-expanded={savedWalletsOpen && savedWalletNames.length > 0}
+                          disabled={walletOperation !== null}
+                          onClick={() => {
+                            setFilterSavedWallets(false);
+                            setSavedWalletsOpen((current) => !current);
+                            void loadSavedWalletNames();
+                          }}
+                        >
+                          ▾
+                        </button>
+                        {savedWalletsOpen && savedWalletNames.length > 0 && (
+                          <div
+                            id="feelcoin-saved-wallet-options"
+                            className="wallet-name-options"
+                            role="listbox"
+                            aria-label="Saved wallets on this device"
+                          >
+                            <div className="wallet-name-options-title">SAVED WALLETS ON THIS DEVICE</div>
+                            {savedWalletNames
+                              .filter((name) => !filterSavedWallets || name.toLowerCase().includes(walletName.trim().toLowerCase()))
+                              .map((name) => (
+                                <button
+                                  type="button"
+                                  role="option"
+                                  aria-selected={walletName === name}
+                                  className="wallet-name-option"
+                                  key={name}
+                                  onMouseDown={(event) => event.preventDefault()}
+                                  onClick={() => {
+                                    setWalletName(name);
+                                    setSavedWalletsOpen(false);
+                                    setFilterSavedWallets(false);
+                                  }}
+                                >
+                                  {name}
+                                </button>
+                              ))}
+                            {filterSavedWallets &&
+                              !savedWalletNames.some((name) => name.toLowerCase().includes(walletName.trim().toLowerCase())) && (
+                                <p className="wallet-name-empty">No matching wallets. You can use a new name.</p>
+                              )}
+                          </div>
+                        )}
+                      </div>
+                      {savedWalletsError && <small className="wallet-name-error">{savedWalletsError}</small>}
+                    </div>
 
                     <label>
                       <span>Password</span>
