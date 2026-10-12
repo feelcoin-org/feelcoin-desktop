@@ -1024,6 +1024,13 @@ function App() {
               >
                 {sending ? "Sending…" : "Review & send"}
               </button>
+              <p className="send-hint" aria-live="polite">
+                {!sendAddress.trim()
+                  ? "Enter a destination address to continue."
+                  : !validSendAmount
+                    ? "Enter an amount greater than zero, with up to 12 decimal places."
+                    : "Verify the address and amount before confirming."}
+              </p>
             </form>
             {sendResult && <div className="form-message selectable">{sendResult}</div>}
           </section>
