@@ -1,0 +1,75 @@
+name: Wallet V2 Windows Linux Test Packages
+
+on:
+  push:
+    branches:
+      - feature/wallet-ui-v2-windows-linux-20261012
+    paths:
+      - '.github/workflows/wallet-v2-test-packages.yml'
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'public/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: V2 test ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+            bundles: nsis
+          - platform: linux-amd64
+            os: ubuntu-22.04
+            bundles: deb
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Install dependencies
+        run: npm ci
+      - name: Check TypeScript and frontend
+        run: npm run build
+      - name: Check backend
+        working-directory: src-tauri
+        run: cargo check
+      - name: Generate platform icons
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+      - name: Use supported icon files
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const file='src-tauri/tauri.conf.json';
+          const config=JSON.parse(fs.readFileSync(file,'utf8'));
+          config.bundle.icon=['icons/32x32.png','icons/128x128.png','icons/128x128@2x.png','icons/icon.ico'];
+          fs.writeFileSync(file,JSON.stringify(config,null,2)+'\n');
+          NODE
+      - name: Build installers (testing only)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: --bundles ${{ matrix.bundles }}
+      - name: Upload private test artifacts (no release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: feelcoin-wallet-v2-test-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: error
+          retention-days: 7
