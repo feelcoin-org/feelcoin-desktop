@@ -126,6 +126,24 @@ function feelToAtomicString(input: string): string {
 
 function App() {
   const [view, setView] = useState<View>("overview");
+  // Only the visual preference is persisted. Wallet secrets remain local to the wallet service.
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    try {
+      const stored = window.localStorage.getItem("feelcoin-desktop-theme");
+      if (stored === "light" || stored === "dark") return stored;
+    } catch {
+      // Storage access is optional, including in restrictive desktop webviews.
+    }
+    return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  });
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("feelcoin-desktop-theme", theme);
+    } catch {
+      // Theme remains functional for this session even if storage is unavailable.
+    }
+  }, [theme]);
   const [network, setNetwork] = useState<NetworkDefaults>(FALLBACK_NETWORK);
   const [daemon, setDaemon] = useState<DaemonInfo>(EMPTY_DAEMON);
   const [walletRpc, setWalletRpc] = useState<WalletRpcStatus>(EMPTY_WALLET_RPC);
@@ -501,6 +519,11 @@ function App() {
   async function handleSend(event: FormEvent) {
     event.preventDefault();
 
+    if (!sendAddress.trim()) {
+      setSendResult("Enter a destination address.");
+      return;
+    }
+
     if (sending || walletOperationLock.current || serviceRestartLock.current) {
       return;
     }
@@ -533,6 +556,15 @@ function App() {
     }
   }
 
+  const validSendAmount = (() => {
+    try {
+      feelToAtomicString(sendAmount);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
   const transferRows = Object.entries(history)
     .flatMap(([group, rows]) =>
       (rows || []).map((entry) => ({ ...entry, group })),
@@ -546,6 +578,7 @@ function App() {
     return (
       <button
         className={`nav-item ${view === target ? "active" : ""}`}
+        aria-current={view === target ? "page" : undefined}
         disabled={disabled}
         onClick={() => setView(target)}
       >
@@ -555,7 +588,7 @@ function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={theme}>
       <aside className="sidebar">
         <div className="brand">
           <img className="coin-mark" src="/feelcoin-logo.png" alt="Feelcoin logo" />
@@ -592,6 +625,14 @@ function App() {
           </div>
 
           <div className="status-stack">
+            <button
+              type="button"
+              className="theme-toggle"
+              aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              onClick={() => setTheme(current => current === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? "☀ Light mode" : "☾ Dark mode"}
+            </button>
             <div className={daemon.reachable ? "status online" : "status offline"}>
               <span />
               {daemon.reachable ? "Daemon online" : "Daemon starting"}
@@ -979,7 +1020,7 @@ function App() {
               <button
                 className="primary"
                 type="submit"
-                disabled={sending}
+                disabled={sending || !sendAddress.trim() || !validSendAmount || walletOperation !== null || restartingServices}
               >
                 {sending ? "Sending…" : "Review & send"}
               </button>
