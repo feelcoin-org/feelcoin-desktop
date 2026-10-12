@@ -94,6 +94,13 @@ body {
 }
 .app-shell .hero-card { margin-top: 24px; padding: 30px; min-height: 185px; }
 .app-shell .hero-card p:not(.eyebrow) { color: var(--wallet-muted); }
+.app-shell .hero-card p.hero-tagline:not(.eyebrow) {
+  color: var(--wallet-ink);
+  font-weight: 750;
+  font-size: 16px;
+  margin: 16px 0 9px;
+  letter-spacing: -.015em;
+}
 .app-shell .grid { gap: 14px; }
 .app-shell .card { padding: 24px; }
 .app-shell .page-card { padding: clamp(22px, 3vw, 32px); }
@@ -158,6 +165,68 @@ body {
   outline-offset: 2px;
   box-shadow: none;
 }
+/* Saved-wallet picker: file names only, matching light/dark Wallet V2. */
+.app-shell .wallet-name-field { display: grid; gap: 7px; min-width: 0; }
+.app-shell .wallet-name-field label > span { color: var(--wallet-muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; }
+.app-shell .wallet-name-picker { position: relative; }
+.app-shell .wallet-name-picker > input { padding-right: 50px; }
+.app-shell .wallet-name-trigger {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--wallet-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+}
+.app-shell .wallet-name-trigger:hover:not(:disabled) { background: var(--wallet-panel-soft); color: var(--wallet-ink); }
+.app-shell .wallet-name-trigger:disabled { opacity: .45; cursor: default; }
+.app-shell .wallet-name-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--wallet-panel);
+  border: 1px solid var(--wallet-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.16);
+}
+.app-shell .wallet-name-options-title {
+  padding: 8px 10px;
+  color: var(--wallet-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+.app-shell .wallet-name-option {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--wallet-ink);
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+}
+.app-shell .wallet-name-option:hover,
+.app-shell .wallet-name-option:focus-visible,
+.app-shell .wallet-name-option[aria-selected="true"] {
+  color: var(--wallet-accent);
+  background: var(--wallet-active);
+}
+.app-shell .wallet-name-empty { margin: 5px 10px 10px; color: var(--wallet-muted); font-size: 12px; }
+.app-shell .wallet-name-error { color: #d57b7b; font-size: 12px; }
 .app-shell .primary {
   background: #ecaa3e;
   color: #271905;
