@@ -604,6 +604,48 @@ fn validate_wallet_name(filename: &str) -> Result<(), String> {
     Ok(())
 }
 
+// Wallet discovery is local-only: inspect file names, never read wallet keys or seeds.
+#[tauri::command]
+fn list_local_wallets(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let wallet_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to locate application data directory: {error}"))?
+        .join("wallets");
+
+    let entries = match fs::read_dir(&wallet_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("Unable to list local wallets: {error}")),
+    };
+
+    let mut wallets = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Unable to inspect local wallets: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("Unable to inspect wallet file type: {error}"))?
+            .is_file()
+        {
+            continue;
+        }
+
+        let filename = match entry.file_name().into_string() {
+            Ok(filename) => filename,
+            Err(_) => continue,
+        };
+        if let Some(name) = filename.strip_suffix(".keys") {
+            if validate_wallet_name(name).is_ok() {
+                wallets.push(name.to_string());
+            }
+        }
+    }
+
+    wallets.sort();
+    wallets.dedup();
+    Ok(wallets)
+}
+
 #[derive(Serialize)]
 struct WalletRecoveryInfo {
     mnemonic: String,
@@ -810,6 +852,7 @@ pub fn run() {
             restart_local_services,
             daemon_info,
             wallet_rpc_status,
+            list_local_wallets,
             create_wallet,
             open_wallet,
             restore_wallet,
