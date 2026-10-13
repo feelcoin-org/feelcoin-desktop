@@ -71,6 +71,17 @@ jobs:
           git clone --depth 1 --branch v0.2.1 --recurse-submodules https://github.com/feelcoin-org/feelcoin.git core
           cd core
           git submodule update --init --recursive --force
+
+          # Core v0.2.1 uses older C++ standards, but current MSYS2
+          # Protobuf/Abseil packages require at least C++17.
+          # Change ONLY the temporary CI clone; no upstream source is rewritten.
+          grep -Fq 'set(CMAKE_CXX_STANDARD 14)' CMakeLists.txt
+          grep -Fq '"-DCMAKE_CXX_STANDARD=11"' cmake/CheckTrezor.cmake
+          sed -i 's/set(CMAKE_CXX_STANDARD 14)/set(CMAKE_CXX_STANDARD 17)/' CMakeLists.txt
+          sed -i 's/"-DCMAKE_CXX_STANDARD=11"/"-DCMAKE_CXX_STANDARD=17"/' cmake/CheckTrezor.cmake
+          grep -Fq 'set(CMAKE_CXX_STANDARD 17)' CMakeLists.txt
+          grep -Fq '"-DCMAKE_CXX_STANDARD=17"' cmake/CheckTrezor.cmake
+
           make release-static-win64 -j2
 
           daemon="$(find build -type f -name feelcoind.exe -print -quit)"
