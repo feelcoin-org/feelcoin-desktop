@@ -108,8 +108,12 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then
             test -s "$root/bin/feelcoind.exe"
             test -s "$root/bin/feelcoin-wallet-rpc.exe"
-            test ! -e "$root/bin/feelcoind"
-            test ! -e "$root/bin/feelcoin-wallet-rpc"
+            # MSYS/Git Bash may implicitly resolve "feelcoind" to "feelcoind.exe".
+            # Inspect directory entries for exact names instead of test -e.
+            if find "$root/bin" -maxdepth 1 -type f \( -name 'feelcoind' -o -name 'feelcoin-wallet-rpc' \) | grep -q .; then
+              echo "ERROR: Linux executables remain in the Windows bundle input"
+              exit 1
+            fi
             if find "$root/lib" -type f -name '*.so*' | grep -q .; then
               echo "ERROR: Linux shared libraries remain in the Windows payload"
               exit 1
