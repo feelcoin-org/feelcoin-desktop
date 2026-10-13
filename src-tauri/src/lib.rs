@@ -2,10 +2,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use tauri::Manager;
@@ -349,10 +349,7 @@ fn configure_background_process(command: &mut Command) {
     }
 }
 
-fn apply_bundled_library_path(
-    command: &mut Command,
-    app: &tauri::AppHandle,
-) -> Result<(), String> {
+fn apply_bundled_library_path(command: &mut Command, app: &tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let resource_dir = app
@@ -360,22 +357,15 @@ fn apply_bundled_library_path(
             .resource_dir()
             .map_err(|error| format!("Unable to locate Feelcoin resources: {error}"))?;
 
-        let bundled_lib_dir = resource_dir
-            .join("resources")
-            .join("lib");
+        let bundled_lib_dir = resource_dir.join("resources").join("lib");
 
         if bundled_lib_dir.is_dir() {
-            let inherited = std::env::var("LD_LIBRARY_PATH")
-                .unwrap_or_default();
+            let inherited = std::env::var("LD_LIBRARY_PATH").unwrap_or_default();
 
             let value = if inherited.is_empty() {
                 bundled_lib_dir.to_string_lossy().into_owned()
             } else {
-                format!(
-                    "{}:{}",
-                    bundled_lib_dir.to_string_lossy(),
-                    inherited
-                )
+                format!("{}:{}", bundled_lib_dir.to_string_lossy(), inherited)
             };
 
             command.env("LD_LIBRARY_PATH", value);
@@ -384,7 +374,6 @@ fn apply_bundled_library_path(
 
     Ok(())
 }
-
 
 fn ensure_directory(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path)
@@ -437,10 +426,7 @@ fn start_local_services(
             let mut daemon_command = Command::new(daemon_binary);
             configure_background_process(&mut daemon_command);
 
-            apply_bundled_library_path(
-                &mut daemon_command,
-                &app,
-            )?;
+            apply_bundled_library_path(&mut daemon_command, &app)?;
 
             let child = daemon_command
                 .arg("--data-dir")
@@ -478,10 +464,7 @@ fn start_local_services(
             let mut wallet_command = Command::new(wallet_binary);
             configure_background_process(&mut wallet_command);
 
-            apply_bundled_library_path(
-                &mut wallet_command,
-                &app,
-            )?;
+            apply_bundled_library_path(&mut wallet_command, &app)?;
 
             let child = wallet_command
                 .arg("--wallet-dir")
@@ -602,6 +585,48 @@ fn validate_wallet_name(filename: &str) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+// Wallet discovery is local-only: inspect file names, never read wallet keys or seeds.
+#[tauri::command]
+fn list_local_wallets(app: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let wallet_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Unable to locate application data directory: {error}"))?
+        .join("wallets");
+
+    let entries = match fs::read_dir(&wallet_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(format!("Unable to list local wallets: {error}")),
+    };
+
+    let mut wallets = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("Unable to inspect local wallets: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("Unable to inspect wallet file type: {error}"))?
+            .is_file()
+        {
+            continue;
+        }
+
+        let filename = match entry.file_name().into_string() {
+            Ok(filename) => filename,
+            Err(_) => continue,
+        };
+        if let Some(name) = filename.strip_suffix(".keys") {
+            if validate_wallet_name(name).is_ok() {
+                wallets.push(name.to_string());
+            }
+        }
+    }
+
+    wallets.sort();
+    wallets.dedup();
+    Ok(wallets)
 }
 
 #[derive(Serialize)]
@@ -810,6 +835,7 @@ pub fn run() {
             restart_local_services,
             daemon_info,
             wallet_rpc_status,
+            list_local_wallets,
             create_wallet,
             open_wallet,
             restore_wallet,
