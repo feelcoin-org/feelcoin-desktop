@@ -32,8 +32,8 @@ jobs:
           set -euo pipefail
           # The release source was derived from a Linux build; do not carry
           # its binaries into a Windows installation.
-          find src-tauri/resources/bin src-tauri/resources/lib -maxdepth 1 -type f \\( -name 'feelcoind*' -o -name 'feelcoin-wallet-rpc*' -o -name '*.so*' \\) -print -delete
-          if find src-tauri/resources/bin src-tauri/resources/lib -type f \\( -name 'feelcoind*' -o -name 'feelcoin-wallet-rpc*' -o -name '*.so*' \\) | grep -q .; then
+          find src-tauri/resources/bin src-tauri/resources/lib -maxdepth 1 -type f \( -name 'feelcoind*' -o -name 'feelcoin-wallet-rpc*' -o -name '*.so*' \) -print -delete
+          if find src-tauri/resources/bin src-tauri/resources/lib -type f \( -name 'feelcoind*' -o -name 'feelcoin-wallet-rpc*' -o -name '*.so*' \) | grep -q .; then
             echo "STOP: Core files remain in Windows candidate checkout"
             exit 1
           fi
@@ -72,7 +72,7 @@ jobs:
           root="src-tauri/resources"
           if [ "$RUNNER_OS" = "Windows" ]; then
             # Windows ships ONLY the graphical wallet application. Core is external.
-            if find "$root/bin" "$root/lib" -type f \\( -name 'feelcoind*' -o -name 'feelcoin-wallet-rpc*' -o -name '*.so*' \\) | grep -q .; then
+            if find "$root/bin" "$root/lib" -type f \( -name 'feelcoind*' -o -name 'feelcoin-wallet-rpc*' -o -name '*.so*' \) | grep -q .; then
               echo "ERROR: Prohibited native Core component found in Windows bundle input"
               exit 1
             fi
@@ -126,13 +126,13 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $tool = Join-Path $env:ProgramFiles '7-Zip\\7z.exe'
+          $tool = Join-Path $env:ProgramFiles '7-Zip\7z.exe'
           if (!(Test-Path $tool)) { throw '7-Zip inspection utility missing' }
           $inst = @(Get-ChildItem 'src-tauri/target/release/bundle/nsis' -Filter '*.exe' -File)
           if ($inst.Count -ne 1) { throw 'Expected exactly one Windows installer' }
           $listing = & $tool l -slt $inst[0].FullName | Out-String
           if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect Windows installer' }
-          if ($listing -match '(?i)feelcoind(?:\\.exe)?|feelcoin-wallet-rpc(?:\\.exe)?|libcom_err\\.so|\\.so\\.\\d') {
+          if ($listing -match '(?i)feelcoind(?:\.exe)?|feelcoin-wallet-rpc(?:\.exe)?|libcom_err\.so|\.so\.\d') {
             throw 'Prohibited bundled Core executable or Linux shared library detected'
           }
           'PASS: Windows candidate does not contain bundled Feelcoin Core.'
