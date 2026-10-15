@@ -31,8 +31,11 @@
     "targets": "all",
     "category": "Finance",
     "shortDescription": "Official Feelcoin desktop wallet",
-    "longDescription": "Feelcoin desktop wallet: Linux includes local node services; Windows uses separately installed local Feelcoin Core services.",
-    "resources": [],
+    "longDescription": "Self-contained Feelcoin desktop wallet with local daemon and wallet RPC support.",
+    "resources": [
+      "resources/bin/*",
+      "resources/lib/*"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

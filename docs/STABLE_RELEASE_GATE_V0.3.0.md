@@ -8,15 +8,17 @@ Do not build from the older `main` scaffold. The full wallet functionality is pr
 ## Candidate build
 - Windows x64 NSIS installer built on a Windows GitHub runner.
 - Linux amd64 DEB and AppImage built on a Linux GitHub runner.
-- All packages use version `0.3.0`, without a Beta suffix in the application UI.
-- Windows build compiles **only the Tauri wallet application**, never Feelcoin Core or a miner.
-- Windows packaging includes **NO** `feelcoind`, `feelcoind.exe`, `feelcoin-wallet-rpc`, `feelcoin-wallet-rpc.exe`, Linux ELF binaries, `.so` libraries or a mining engine.
-- Windows requires an independently installed, trusted local daemon at `127.0.0.1:35781` and wallet RPC at `127.0.0.1:35784`; it must never be described as self-contained.\n- Linux packaging includes the verified Linux-native daemon, wallet RPC and required Linux library, never Windows executables.
-- The GitHub Actions workflow publishes **candidate artifacts only**, not a GitHub Release.
+- All wallet packages use version `0.3.0`, without a Beta suffix in the app interface.
+- **Standalone Feelcoin Core is not being released for Windows.** This workflow produces a *desktop wallet*, not standalone Windows Core downloads.
+- For the Windows wallet, use the same Beta 3 native approach: build Windows-native `feelcoind.exe` and `feelcoin-wallet-rpc.exe` as internal dependencies, then bundle only those native components.
+- Explicitly remove and reject Linux ELF executables and `.so` shared libraries from Windows bundle inputs and audit the resulting NSIS installer.
+- Linux packages bundle Linux-native daemon and wallet RPC and required Linux library; never Windows executables.
+- Do not bundle any mining executable.
+- CI publishes **candidate artifacts only**, not a public GitHub Stable Release.
 
 ## Required validation before publishing
-- [ ] Windows x64 installer: extracted payload checked to contain **no bundled Core binary or Linux shared library**.
-- [ ] Windows 10/11 clean install and in-place upgrade tested with **separately running local Core services**; startup and recovery instructions confirmed.
+- [ ] Windows x64 installer: verify that Windows-native daemon and wallet RPC are present and that no Linux ELF binary or `.so` library is bundled.
+- [ ] Windows 10/11 clean install and in-place upgrade tested with the wallet's own bundled Windows-native local services; verify startup, shutdown and recovery.
 - [ ] Ubuntu clean install and upgrade: DEB and AppImage open and run.
 - [ ] Wallet creation and recovery using a disposable test wallet on each OS.
 - [ ] Seed backup and restored receiving address match.

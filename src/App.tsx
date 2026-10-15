@@ -125,7 +125,6 @@ function feelToAtomicString(input: string): string {
 }
 
 function App() {
-  const externalCoreOnWindows = navigator.userAgent.includes("Windows");
   const [view, setView] = useState<View>("overview");
   // Only the visual preference is persisted. Wallet secrets remain local to the wallet service.
   const [theme, setTheme] = useState<"light" | "dark">(() => {
@@ -635,7 +634,7 @@ function App() {
           <span className="shield">✓</span>
           <div>
             <strong>No bundled miner</strong>
-            <small>{externalCoreOnWindows ? "Core is installed and run separately on Windows." : "Linux includes the daemon and wallet RPC."}</small>
+            <small>Only the official daemon and wallet RPC are included.</small>
           </div>
         </div>
       </aside>
@@ -659,11 +658,11 @@ function App() {
             </button>
             <div className={daemon.reachable ? "status online" : "status offline"}>
               <span />
-              {daemon.reachable ? "Daemon online" : "Daemon offline"}
+              {daemon.reachable ? "Daemon online" : "Daemon starting"}
             </div>
             <div className={walletRpc.reachable ? "status online" : "status offline"}>
               <span />
-              {walletRpc.reachable ? "Wallet RPC ready" : "Wallet RPC offline"}
+              {walletRpc.reachable ? "Wallet RPC ready" : "Wallet RPC starting"}
             </div>
           </div>
         </header>
@@ -679,7 +678,7 @@ function App() {
             <strong>Local service startup issue</strong>
             <span>{serviceError}</span>
             <button
-              onClick={externalCoreOnWindows ? startServices : restartServices}
+              onClick={restartServices}
               disabled={restartingServices || walletOperation !== null}
             >
               {restartingServices ? "Restarting…" : "Retry"}
@@ -1239,16 +1238,14 @@ function App() {
               <div><span>Wallet RPC</span><strong>{network.wallet_rpc_port}</strong></div>
             </div>
             <p className="service-note">
-              {externalCoreOnWindows
-                ? "On Windows, Feelcoin Core is not bundled. Start a separately installed Feelcoin daemon and wallet RPC on localhost before using the wallet."
-                : "Feelcoin Desktop uses the bundled official daemon, which discovers the Feelcoin network through the official bootstrap infrastructure and P2P peers."}
+              Feelcoin Desktop uses the bundled official daemon, which discovers the Feelcoin network through the official bootstrap infrastructure and P2P peers.
             </p>
             <button
               className="secondary compact"
-              onClick={externalCoreOnWindows ? startServices : restartServices}
+              onClick={restartServices}
               disabled={restartingServices || walletOperation !== null}
             >
-              {restartingServices ? "Restarting services…" : externalCoreOnWindows ? "Check local services" : "Restart services"}
+              {restartingServices ? "Restarting services…" : "Restart services"}
             </button>
           </section>
         )}
