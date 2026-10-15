@@ -9,14 +9,14 @@ Do not build from the older `main` scaffold. The full wallet functionality is pr
 - Windows x64 NSIS installer built on a Windows GitHub runner.
 - Linux amd64 DEB and AppImage built on a Linux GitHub runner.
 - All packages use version `0.3.0`, without a Beta suffix in the application UI.
-- Windows build compiles **Windows-native Feelcoin Core v0.2.1 daemon and wallet RPC**.
-- Windows packaging includes **only** `feelcoind.exe` and `feelcoin-wallet-rpc.exe`, never Linux ELF executables, `.so` libraries or a mining engine.
-- Linux packaging includes the verified Linux-native daemon, wallet RPC and required Linux library, never Windows executables.
+- Windows build compiles **only the Tauri wallet application**, never Feelcoin Core or a miner.
+- Windows packaging includes **NO** `feelcoind`, `feelcoind.exe`, `feelcoin-wallet-rpc`, `feelcoin-wallet-rpc.exe`, Linux ELF binaries, `.so` libraries or a mining engine.
+- Windows requires an independently installed, trusted local daemon at `127.0.0.1:35781` and wallet RPC at `127.0.0.1:35784`; it must never be described as self-contained.\n- Linux packaging includes the verified Linux-native daemon, wallet RPC and required Linux library, never Windows executables.
 - The GitHub Actions workflow publishes **candidate artifacts only**, not a GitHub Release.
 
 ## Required validation before publishing
-- [ ] Windows x64 installer: extracted payload checked for operating-system purity.
-- [ ] Windows 10/11 clean install and in-place upgrade: actual UI and local services tested.
+- [ ] Windows x64 installer: extracted payload checked to contain **no bundled Core binary or Linux shared library**.
+- [ ] Windows 10/11 clean install and in-place upgrade tested with **separately running local Core services**; startup and recovery instructions confirmed.
 - [ ] Ubuntu clean install and upgrade: DEB and AppImage open and run.
 - [ ] Wallet creation and recovery using a disposable test wallet on each OS.
 - [ ] Seed backup and restored receiving address match.
