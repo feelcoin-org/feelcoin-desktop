@@ -1,82 +1,67 @@
 # Feelcoin Desktop Wallet 🪙
 
-<p align="center">
-  <a href="https://feelcoin.org"><img src="https://feelcoin.org/assets/feelcoin-logo-v2.png" alt="Official Feelcoin logo" width="144"></a>
-</p>
+**Official Feelcoin (FEEL) desktop wallet for Windows and Linux**
 
-**Official Feelcoin (FEEL) desktop wallet — Windows & Linux**
+**Latest stable:** [v0.3.0](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.3.0) · **Network:** Feelcoin Mainnet · **Architecture:** x86-64
 
-**Current release:** [v0.2.0 Beta](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.2.0-beta.1) · **Network:** Feelcoin Mainnet · **Architecture:** x86-64 / AMD64
+> **Wallet safety:** Store your recovery seed offline. Never share seed words, private keys, or wallet passwords. The v0.3.0 designation reflects platform/device testing; it does **not** indicate an independent external security audit.
 
-> **Beta software:** Community testing is ongoing. Back up your recovery seed securely and offline. Start with small amounts and never share your seed, private keys, or wallet password.
-
-## Download
+## Official v0.3.0 downloads
 
 | Platform | Package | Download |
 | --- | --- | --- |
-| Windows 10/11 x64 | Installer (`.exe`) | [Download for Windows](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.2.0-beta.1/Feelcoin.Desktop_0.2.0-beta.1_x64-setup.exe) |
-| Debian / Ubuntu x86-64 | DEB (`.deb`) | [Download Linux DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.2.0-beta.1/Feelcoin.Desktop_0.2.0-beta.1_amd64.deb) |
-| Linux x86-64 | Portable AppImage | [Download Linux AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.2.0-beta.1/Feelcoin.Desktop_0.2.0-beta.1_amd64.AppImage) |
+| Windows 10/11 x64 | NSIS installer (.exe) | [Feelcoin Desktop v0.3.0 Windows](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/Feelcoin.Desktop_0.3.0_x64-setup.exe) |
+| Debian / Ubuntu x86-64 | DEB package | [Feelcoin Desktop v0.3.0 DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/Feelcoin.Desktop_0.3.0_amd64.deb) |
+| Linux x86-64 | AppImage | [Feelcoin Desktop v0.3.0 AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/Feelcoin.Desktop_0.3.0_amd64.AppImage) |
 
-[Release notes and all packages](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.2.0-beta.1) · [Report an issue](https://github.com/feelcoin-org/feelcoin-desktop/issues)
+[Official release notes](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.3.0) · [SHA-256 checksums](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/SHA256SUMS.txt)
 
-### Install on Windows
+### Installation
 
-1. Download the Windows installer from the official release page.
-2. Run the installer and launch **Feelcoin Desktop**.
-3. Create or recover a wallet, securely store its recovery seed, and allow synchronization.
+**Windows:** Verify the downloaded .exe checksum against SHA256SUMS.txt, close any running older wallet, and run the installer. The installer may not have an OS publisher signature; never disable antivirus or bypass security warnings to install it.
 
-The Beta installer is not advertised as code-signed. Do not disable antivirus or endpoint protections to install it. Please report any warnings or installation problems.
-
-### Install on Linux
-
-**Debian / Ubuntu:**
-
-Download the `.deb` package and install it from its download directory:
+**Ubuntu / Debian:**
 
 ```bash
-sudo apt install ./Feelcoin.Desktop_0.2.0-beta.1_amd64.deb
+sudo apt install './Feelcoin Desktop_0.3.0_amd64.deb'
 ```
 
-**Portable AppImage:**
+**Linux portable:**
 
 ```bash
-chmod +x Feelcoin.Desktop_0.2.0-beta.1_amd64.AppImage
-./Feelcoin.Desktop_0.2.0-beta.1_amd64.AppImage
+chmod +x './Feelcoin Desktop_0.3.0_amd64.AppImage'
+'./Feelcoin Desktop_0.3.0_amd64.AppImage'
 ```
 
-On Linux systems without working FUSE/AppImage support, `--appimage-extract-and-run` may help.
+Use `APPIMAGE_EXTRACT_AND_RUN=1` if FUSE is unavailable.
 
-### Verify downloads
+### Verify your download
 
-The build artifacts were SHA-256 verified before publishing. To inspect the hash of a downloaded package yourself:
+Download the checksum file alongside the package. On Linux:
 
 ```bash
-sha256sum Feelcoin.Desktop_0.2.0-beta.1_amd64.deb
+sha256sum -c SHA256SUMS.txt --ignore-missing
 ```
 
 On Windows PowerShell:
 
 ```powershell
-Get-FileHash '.\Feelcoin.Desktop_0.2.0-beta.1_x64-setup.exe' -Algorithm SHA256
+Get-FileHash '.\Feelcoin Desktop_0.3.0_x64-setup.exe' -Algorithm SHA256
 ```
 
-A combined public checksum manifest is not yet attached to this Beta release; do not treat a locally calculated hash alone as independent verification.
+Compare the output with SHA256SUMS.txt from the same release.
 
-## Beta features
+## Stable v0.3.0 features
 
-- Local Feelcoin daemon and wallet RPC components bundled with the application.
-- Wallet creation and recovery, balance refresh, and send/receive tools.
-- Transaction history and status tracking.
-- Network status, block height, peer count, and daemon health information.
-- Open-source desktop application built with **Tauri, Rust, React, and TypeScript**.
-- Windows installer and Linux AppImage/DEB packages.
+- Bundled **platform-native** local Feelcoin daemon and wallet RPC, on both Windows and Linux.
+- Wallet creation, opening, recovery, balances, send and receive, and synchronization.
+- Network information, node connectivity, transaction history and wallet status.
+- No miner or standalone Windows Core installer included.
+- Windows installer and Linux DEB/AppImage were built and tested for v0.3.0.
 
-### Beta testing notes
+**Upgrading:** Close your current wallet, back up its recovery seed offline, and install the new package. Do not uninstall and delete wallet application data. Never run two versions against the same wallet simultaneously.
 
-This is a public Beta, not a final audited release. Successful builds and initial device tests do not establish that every wallet operation is validated on every system. Please test synchronization, balance accuracy, wallet recovery, and transfers with small amounts, and report reproducible issues.
-
-Do not use Beta software to safeguard substantial funds. Keep independent offline backups of recovery material.
+**Source provenance:** The verified v0.3.0 desktop installers were built from the [stable-candidate source revision](https://github.com/feelcoin-org/feelcoin-desktop/tree/b89c7630a4fd530217716e060cd47a9631f8a8d6). The default `main` branch may contain development changes.
 
 ## Security
 
