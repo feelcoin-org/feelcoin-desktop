@@ -617,7 +617,7 @@ function App() {
           <img className="coin-mark" src="/feelcoin-logo.png" alt="Feelcoin logo" />
           <div>
             <strong>FEELCOIN</strong>
-            <span>DESKTOP BETA</span>
+            <span>DESKTOP</span>
           </div>
         </div>
 
@@ -642,7 +642,7 @@ function App() {
       <section className="content">
         <header className="topbar">
           <div>
-            <p className="eyebrow">OFFICIAL FEELCOIN WALLET · BETA</p>
+            <p className="eyebrow">OFFICIAL FEELCOIN WALLET</p>
             <h1>Feelcoin Desktop</h1>
             <p className="subtle">Self-contained local wallet for the Feelcoin community.</p>
           </div>
@@ -786,7 +786,7 @@ function App() {
               </article>
 
               <article className="card wide">
-                <p className="eyebrow">BETA SECURITY MODEL</p>
+                <p className="eyebrow">WALLET SECURITY MODEL</p>
                 <h3>Visible processes. Explicit choices.</h3>
                 <div className="principles">
                   <div><strong>No miner included</strong><span>The installer contains no mining engine.</span></div>
@@ -1250,7 +1250,7 @@ function App() {
           </section>
         )}
 
-        <footer>Feelcoin Desktop Beta · Windows + Linux · In Feels We Trust.</footer>
+        <footer>Feelcoin Desktop · Windows + Linux · In Feels We Trust.</footer>
       </section>
     </main>
   );
