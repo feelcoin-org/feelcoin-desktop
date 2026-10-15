@@ -124,6 +124,12 @@ function feelToAtomicString(input: string): string {
   return atomic.toString();
 }
 
+function normalizeSendAddress(address: string): string {
+  // Address copy/paste may contain spaces, tabs or line breaks.
+  // Never change the non-whitespace address characters.
+  return address.replace(/\s+/g, "");
+}
+
 function App() {
   const [view, setView] = useState<View>("overview");
   // Only the visual preference is persisted. Wallet secrets remain local to the wallet service.
@@ -542,7 +548,8 @@ function App() {
   async function handleSend(event: FormEvent) {
     event.preventDefault();
 
-    if (!sendAddress.trim()) {
+    const destinationAddress = normalizeSendAddress(sendAddress);
+    if (!destinationAddress) {
       setSendResult("Enter a destination address.");
       return;
     }
@@ -556,14 +563,14 @@ function App() {
     try {
       const amountAtomic = feelToAtomicString(sendAmount);
       const accepted = window.confirm(
-        `Send ${sendAmount.trim()} FEEL to\n\n${sendAddress.trim()}\n\nThis will create a real Feelcoin transaction.`,
+        `Send ${sendAmount.trim()} FEEL to\n\n${destinationAddress}\n\nThis will create a real Feelcoin transaction.`,
       );
       if (!accepted) return;
 
       setSending(true);
 
       const result = await invoke<{ tx_hash: string; fee: number; amount: number }>("send_feel", {
-        address: sendAddress.trim(),
+        address: destinationAddress,
         amountAtomic,
       });
 
@@ -1105,7 +1112,7 @@ function App() {
                 <span>Destination address</span>
                 <textarea
                   value={sendAddress}
-                  onChange={(event) => setSendAddress(event.target.value)}
+                  onChange={(event) => setSendAddress(normalizeSendAddress(event.target.value))}
                   placeholder="Feelcoin address"
                   rows={3}
                   spellCheck={false}
