@@ -410,6 +410,27 @@ fn start_local_services(
     ensure_directory(&wallet_dir)?;
     ensure_directory(&log_dir)?;
 
+    // Windows distribution deliberately includes no bundled Feelcoin Core executables.
+    // Use only independently started LOCAL daemon and wallet RPC processes.
+    #[cfg(target_os = "windows")]
+    {
+        if !local_port_reachable(LOCAL_DAEMON_RPC_PORT)
+            || !local_port_reachable(LOCAL_WALLET_RPC_PORT)
+        {
+            return Err(
+                "This Windows wallet does not include Feelcoin Core. Start a separately installed, trusted Feelcoin daemon on localhost:35781 and wallet RPC on localhost:35784 before opening your wallet. Never disable antivirus protection to install Core."
+                    .to_string(),
+            );
+        }
+
+        return Ok(LocalServiceStart {
+            daemon_started: false,
+            wallet_rpc_started: false,
+            data_dir: blockchain_dir.to_string_lossy().into_owned(),
+            wallet_dir: wallet_dir.to_string_lossy().into_owned(),
+        });
+    }
+
     let mut daemon_started = false;
     let mut wallet_rpc_started = false;
 
