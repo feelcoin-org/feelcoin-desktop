@@ -2,66 +2,60 @@
 
 **Official Feelcoin (FEEL) desktop wallet for Windows and Linux**
 
-**Latest stable:** [v0.3.0](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.3.0) · **Network:** Feelcoin Mainnet · **Architecture:** x86-64
+**Latest stable:** [v1.0.0](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v1.0.0) · **Network:** Feelcoin Mainnet · **Architecture:** x86-64
 
-> **Wallet safety:** Store your recovery seed offline. Never share seed words, private keys, or wallet passwords. The v0.3.0 designation reflects platform/device testing; it does **not** indicate an independent external security audit.
+> Keep your recovery seed offline. Back up existing wallet data before upgrading. Never share private keys, wallet passwords or seed words.
 
-## Official v0.3.0 downloads
+## Official v1.0.0 downloads
 
 | Platform | Package | Download |
 | --- | --- | --- |
-| Windows 10/11 x64 | NSIS installer (.exe) | [Feelcoin Desktop v0.3.0 Windows](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/Feelcoin.Desktop_0.3.0_x64-setup.exe) |
-| Debian / Ubuntu x86-64 | DEB package | [Feelcoin Desktop v0.3.0 DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/Feelcoin.Desktop_0.3.0_amd64.deb) |
-| Linux x86-64 | AppImage | [Feelcoin Desktop v0.3.0 AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/Feelcoin.Desktop_0.3.0_amd64.AppImage) |
+| Windows 10/11 x64 | Installer | [Windows x64](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin.Desktop_1.0.0_x64-setup.exe) |
+| Ubuntu 22.04 x64 | DEB / AppImage | [DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-22.04-x64.deb) · [AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-22.04-x64.AppImage) |
+| Ubuntu 24.04 x64 | DEB / AppImage | [DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-24.04-x64.deb) · [AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-24.04-x64.AppImage) |
+| Ubuntu 26.04 x64 | DEB / AppImage | [DEB](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-26.04-x64.deb) · [AppImage](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-26.04-x64.AppImage) |
 
-[Official release notes](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.3.0) · [SHA-256 checksums](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v0.3.0/SHA256SUMS.txt)
+[Release notes](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v1.0.0) · [SHA-256 checksums](https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/SHA256SUMS.txt)
 
-### Installation
+## Mandatory v17 Core upgrade
 
-**Windows:** Verify the downloaded .exe checksum against SHA256SUMS.txt, close any running older wallet, and run the installer. The installer may not have an OS publisher signature; never disable antivirus or bypass security warnings to install it.
+Protocol v17 activates at mainnet block **21,205**. Desktop Wallet v1.0.0 bundles the upgraded Core daemon; please install this version before activation. Node operators, solo miners using their own daemon and pool operators must also upgrade. Official-pool miners do not need to change their miner software.
 
-**Ubuntu / Debian:**
+## Installation and verification
 
-```bash
-sudo apt install './Feelcoin Desktop_0.3.0_amd64.deb'
-```
+Close the previous wallet, back up your recovery seed and wallet data, then install the matching package. Normally you should preserve existing AppData; do not delete it or reset your blockchain.
 
-**Linux portable:**
-
-```bash
-chmod +x './Feelcoin Desktop_0.3.0_amd64.AppImage'
-'./Feelcoin Desktop_0.3.0_amd64.AppImage'
-```
-
-Use `APPIMAGE_EXTRACT_AND_RUN=1` if FUSE is unavailable.
-
-### Verify your download
-
-Download the checksum file alongside the package. On Linux:
+Ubuntu 24.04 example (choose your Ubuntu version):
 
 ```bash
-sha256sum -c SHA256SUMS.txt --ignore-missing
+sudo apt install './Feelcoin-v1.0.0-Ubuntu-24.04-x64.deb'
 ```
 
-On Windows PowerShell:
+AppImage example:
+
+```bash
+chmod +x './Feelcoin-v1.0.0-Ubuntu-24.04-x64.AppImage'
+./Feelcoin-v1.0.0-Ubuntu-24.04-x64.AppImage
+```
+
+If FUSE is unavailable, use `APPIMAGE_EXTRACT_AND_RUN=1`.
+
+Download `SHA256SUMS.txt` from the same release. On Linux, run `sha256sum -c SHA256SUMS.txt --ignore-missing`. On Windows PowerShell:
 
 ```powershell
-Get-FileHash '.\Feelcoin Desktop_0.3.0_x64-setup.exe' -Algorithm SHA256
+Get-FileHash '.\Feelcoin.Desktop_1.0.0_x64-setup.exe' -Algorithm SHA256
 ```
 
-Compare the output with SHA256SUMS.txt from the same release.
+Compare the result with the checksum file. Windows binaries are not code-signed.
 
-## Stable v0.3.0 features
+## Features
 
-- Bundled **platform-native** local Feelcoin daemon and wallet RPC, on both Windows and Linux.
-- Wallet creation, opening, recovery, balances, send and receive, and synchronization.
-- Network information, node connectivity, transaction history and wallet status.
-- No miner or standalone Windows Core installer included.
-- Windows installer and Linux DEB/AppImage were built and tested for v0.3.0.
+- Locally bundled Feelcoin Core v1.0.0 daemon and wallet RPC
+- Non-custodial wallet creation, opening, recovery and synchronization
+- Send, receive, balances, transaction history and node information
+- No bundled mining software
 
-**Upgrading:** Close your current wallet, back up its recovery seed offline, and install the new package. Do not uninstall and delete wallet application data. Never run two versions against the same wallet simultaneously.
-
-**Source provenance:** The verified v0.3.0 desktop installers were built from the [stable-candidate source revision](https://github.com/feelcoin-org/feelcoin-desktop/tree/b89c7630a4fd530217716e060cd47a9631f8a8d6). The default `main` branch may contain development changes.
+**Source provenance:** v1.0.0 packages use the [established GUI source](https://github.com/feelcoin-org/feelcoin-desktop/tree/b89c7630a4fd530217716e060cd47a9631f8a8d6) and updated bundled Core v1.0.0. The pinned GUI revision retains earlier version metadata, while the distributed installer packages are labeled v1.0.0.
 
 ## Security
 
@@ -94,7 +88,7 @@ npm run tauri dev
 
 - [Feelcoin website](https://feelcoin.org)
 - [Feelcoin Core](https://github.com/feelcoin-org/feelcoin)
-- [Desktop Beta release](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v0.2.0-beta.1)
+- [Desktop v1.0.0 release](https://github.com/feelcoin-org/feelcoin-desktop/releases/tag/v1.0.0)
 - [Report an issue](https://github.com/feelcoin-org/feelcoin-desktop/issues)
 
 **License:** BSD 3-Clause — see [LICENSE](LICENSE).
@@ -104,8 +98,6 @@ npm run tauri dev
 **In Feels We Trust.**
 
 ---
-
-## In Feels We Trust
 
 ## Contact
 
