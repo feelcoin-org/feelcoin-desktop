@@ -1,0 +1,49 @@
+name: Release source integrity
+
+on:
+  pull_request:
+    paths:
+      - package.json
+      - src-tauri/tauri.conf.json
+      - src-tauri/Cargo.toml
+      - scripts/release/verify_desktop_source.py
+      - .github/workflows/release-source-integrity.yml
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to audit (e.g. v1.0.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  verify-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out selected source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.sha }}
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Ensure source version matches release tag
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || (github.event_name == 'workflow_dispatch' && inputs.release_tag || '') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -n "$RELEASE_TAG" ]]; then
+            python3 scripts/release/verify_desktop_source.py --tag "$RELEASE_TAG"
+          else
+            python3 scripts/release/verify_desktop_source.py
+          fi
