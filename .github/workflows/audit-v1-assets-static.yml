@@ -1,0 +1,65 @@
+name: Audit existing Desktop v1.0.0 assets - static inspection
+
+on:
+  push:
+    branches:
+      - audit/inspect-v1-published-assets-20261027
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Download and statically inspect official packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get -qq update
+          sudo apt-get install -y -qq p7zip-full > /dev/null
+          mkdir -p audit/files audit/desktop-linux audit/core audit/windows
+
+          get_verified() {
+            local repo="$1" name="$2" digest="$3"
+            curl --fail --location --silent --show-error --retry 2 --max-time 300 \
+              --output "audit/files/$name" \
+              "https://github.com/feelcoin-org/$repo/releases/download/v1.0.0/$name"
+            echo "$digest  audit/files/$name" | sha256sum --check
+          }
+
+          # SHA256 digests pinned from existing public GitHub release asset metadata.
+          get_verified feelcoin-desktop Feelcoin-v1.0.0-Ubuntu-26.04-x64.deb \
+            965d9d54e864d51b23c743ab7fb5d9f25d4a136ab8202eb2cb3b952ebab9fd22
+          get_verified feelcoin-desktop Feelcoin.Desktop_1.0.0_x64-setup.exe \
+            3adcd643f4c11c6035624ac3f94ee2b9e45130d74a7a108b29df55080213cc4b
+          get_verified feelcoin feelcoin-core-v1.0.0-ubuntu26-x64.tar.gz \
+            08f7092c59baa2886a69b8e5566aa7a967992e6131e0a9473a2a72a4a2aad9ec
+
+          echo "::group::Desktop Linux package metadata"
+          dpkg-deb --field audit/files/Feelcoin-v1.0.0-Ubuntu-26.04-x64.deb
+          dpkg-deb --contents audit/files/Feelcoin-v1.0.0-Ubuntu-26.04-x64.deb | grep -Ei '(feelcoind|wallet.rpc|resources/bin|/bin/)' | head -60 || true
+          echo "::endgroup::"
+
+          dpkg-deb --extract audit/files/Feelcoin-v1.0.0-Ubuntu-26.04-x64.deb audit/desktop-linux
+          tar -xzf audit/files/feelcoin-core-v1.0.0-ubuntu26-x64.tar.gz -C audit/core
+
+          echo "::group::Core reference binaries (hashes)"
+          find audit/core -type f \( -name feelcoind -o -name 'feelcoin-wallet-rpc' -o -name 'feelcoin-wallet-cli' \) -print -exec sha256sum {} \;
+          echo "::endgroup::"
+
+          echo "::group::Desktop packaged binaries (hashes)"
+          find audit/desktop-linux -type f \( -name feelcoind -o -name 'feelcoin-wallet-rpc' -o -name 'feelcoin-wallet-cli' \) -print -exec sha256sum {} \;
+          echo "::endgroup::"
+
+          echo "::group::Windows installer archive listing"
+          7z l audit/files/Feelcoin.Desktop_1.0.0_x64-setup.exe | grep -Ei '(feelcoind|wallet.rpc|\.exe|\.dll)' | head -65 || true
+          echo "::endgroup::"
+
+          echo "::group::Windows installer static extraction"
+          7z x -y -oaudit/windows audit/files/Feelcoin.Desktop_1.0.0_x64-setup.exe >/dev/null
+          find audit/windows -type f \( -iname '*feelcoind*' -o -iname '*wallet*rpc*' \) -print -exec sha256sum {} \; | head -60
+          echo "::endgroup::"
+
+          echo "Static audit complete. This does NOT execute packages or establish their original build commit."
