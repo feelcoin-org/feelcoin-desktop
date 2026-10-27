@@ -23,7 +23,7 @@ jobs:
           echo '82f5f75fc4d3f5dd01cc8385eba3cb43274eaeeeceb6b1ed298c38fd8871a9e3  /tmp/feelcoin-desktop.deb' | sha256sum -c
           mkdir -p /tmp/feelcoin-package
           dpkg-deb --extract /tmp/feelcoin-desktop.deb /tmp/feelcoin-package
-          find /tmp/feelcoin-package -type f \\( -name feelcoind -o -name feelcoin-wallet-rpc \\) -print -exec sha256sum {} \\;
+          find /tmp/feelcoin-package -type f -name 'feelcoind' -exec sha256sum '{}' \;
 
       - name: Offline daemon version and fork-height RPC probe
         shell: bash
