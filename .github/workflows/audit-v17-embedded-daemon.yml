@@ -1,0 +1,131 @@
+name: Audit embedded Core V17 (isolated runner only)
+
+on:
+  push:
+    branches:
+      - audit/v17-embedded-binary-rpc-20261027
+
+permissions:
+  contents: read
+
+jobs:
+  linux-v17:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Download and hash-verify Desktop Ubuntu 24.04 package
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fL --retry 2 --max-time 300 \
+            -o /tmp/feelcoin-desktop.deb \
+            https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin-v1.0.0-Ubuntu-24.04-x64.deb
+          echo '82f5f75fc4d3f5dd01cc8385eba3cb43274eaeeeceb6b1ed298c38fd8871a9e3  /tmp/feelcoin-desktop.deb' | sha256sum -c
+          mkdir -p /tmp/feelcoin-package
+          dpkg-deb --extract /tmp/feelcoin-desktop.deb /tmp/feelcoin-package
+          find /tmp/feelcoin-package -type f \\( -name feelcoind -o -name feelcoin-wallet-rpc \\) -print -exec sha256sum {} \\;
+
+      - name: Offline daemon version and fork-height RPC probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import glob, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request
+
+          binaries = glob.glob('/tmp/feelcoin-package/**/feelcoind', recursive=True)
+          assert len(binaries) == 1, f'Expected one daemon; found {binaries}'
+          binary = binaries[0]
+          print('DAEMON_PATH', binary, flush=True)
+          print('DAEMON_SHA256', subprocess.check_output(['sha256sum', binary],text=True).strip(), flush=True)
+          print('DAEMON_FILE', subprocess.check_output(['file', binary],text=True).strip(), flush=True)
+          print('DAEMON_LDD', subprocess.run(['ldd', binary],capture_output=True,text=True).stdout[:2500], flush=True)
+          for option in ['--version','--help']:
+              try:
+                  p=subprocess.run([binary,option],capture_output=True,text=True,timeout=15,
+                    env={**os.environ,'HOME':'/tmp/feelcoin-isolated-home'})
+                  lines=(p.stdout+'\n'+p.stderr).splitlines()
+                  print('FLAG',option,'EXIT',p.returncode,'OUTPUT', repr('\n'.join(lines[:8]))[:1200],flush=True)
+              except Exception as ex:
+                  print('FLAG', option, 'ERROR', repr(ex), flush=True)
+
+          def free_port():
+              s=socket.socket();s.bind(('127.0.0.1',0));p=s.getsockname()[1];s.close();return p
+
+          with tempfile.TemporaryDirectory(prefix='feelcoin-v17-rpc-') as base:
+              home=pathlib.Path(base)/'home';home.mkdir()
+              datadir=pathlib.Path(base)/'data';datadir.mkdir()
+              rpc_port,p2p_port=free_port(),free_port()
+              cmd=[binary,'--offline','--non-interactive','--data-dir',str(datadir),
+                   '--rpc-bind-ip','127.0.0.1','--rpc-bind-port',str(rpc_port),
+                   '--p2p-bind-ip','127.0.0.1','--p2p-bind-port',str(p2p_port),
+                   '--no-igd','--hide-my-port']
+              env={**os.environ,'HOME':str(home)}
+              print('START_OFFLINE_DAEMON', ' '.join(cmd),flush=True)
+              with open(pathlib.Path(base)/'daemon.log','w') as f:
+                  p=subprocess.Popen(cmd,stdout=f,stderr=subprocess.STDOUT,env=env)
+                  endpoint=f'http://127.0.0.1:{rpc_port}/json_rpc'
+                  result=None
+                  try:
+                      deadline=time.monotonic()+65
+                      while time.monotonic()<deadline:
+                          if p.poll() is not None:
+                              print('DAEMON_EXIT_EARLY', p.returncode,flush=True)
+                              break
+                          data=json.dumps({'jsonrpc':'2.0','id':'probe',
+                            'method':'hard_fork_info','params':{'version':17}}).encode()
+                          try:
+                              req=urllib.request.Request(endpoint,data=data,headers={'Content-Type':'application/json'})
+                              with urllib.request.urlopen(req,timeout=3) as resp:
+                                  result=json.load(resp)
+                              if result:
+                                  print('HARD_FORK_INFO',json.dumps(result)[:3000],flush=True)
+                                  break
+                          except Exception:
+                              time.sleep(2)
+                      if result and isinstance(result.get('result'),dict):
+                          fork=result['result']
+                          h=fork.get('earliest_height')
+                          print('V17_EARLIEST_HEIGHT',h,flush=True)
+                          if h==21205:
+                              print('PASS_OFFLINE_RPC_V17_HEIGHT_21205',flush=True)
+                          else:
+                              print('UNVERIFIED_OR_MISMATCHED_V17_HEIGHT',flush=True)
+                      else:
+                          print('RPC_PROBE_INCONCLUSIVE',flush=True)
+                  finally:
+                      p.terminate()
+                      try:p.wait(timeout=7)
+                      except subprocess.TimeoutExpired:p.kill();p.wait()
+              print('DAEMON_LOG_TAIL', (pathlib.Path(base)/'daemon.log').read_text(errors='replace')[-5000:],flush=True)
+          PY
+
+  windows-v17:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - name: Hash-verify Windows installer and run isolated version probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $url = "https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/Feelcoin.Desktop_1.0.0_x64-setup.exe"
+          $file = Join-Path $env:RUNNER_TEMP "feelcoin-setup.exe"
+          Invoke-WebRequest -Uri $url -OutFile $file
+          $hash=(Get-FileHash -Algorithm SHA256 $file).Hash.ToLowerInvariant()
+          Write-Host "INSTALLER_SHA256 $hash"
+          if ($hash -ne "3adcd643f4c11c6035624ac3f94ee2b9e45130d74a7a108b29df55080213cc4b") { throw "Installer hash mismatch" }
+          $folder = Join-Path $env:RUNNER_TEMP "feelcoin-extract"
+          New-Item -ItemType Directory -Force $folder | Out-Null
+          & 7z x "-o$folder" -y $file | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z extraction failed" }
+          $daemons = @(Get-ChildItem -Recurse -File $folder | Where-Object {$_.Name -eq "feelcoind.exe"})
+          $walletRpc = @(Get-ChildItem -Recurse -File $folder | Where-Object {$_.Name -eq "feelcoin-wallet-rpc.exe"})
+          if ($daemons.Count -ne 1 -or $walletRpc.Count -ne 1) { throw "Expected bundled executables missing" }
+          Write-Host "WINDOWS_DAEMON $($daemons[0].FullName)"
+          Write-Host "WINDOWS_DAEMON_SHA256 $((Get-FileHash -Algorithm SHA256 $daemons[0].FullName).Hash)"
+          Write-Host "WINDOWS_WALLET_RPC_SHA256 $((Get-FileHash -Algorithm SHA256 $walletRpc[0].FullName).Hash)"
+          $out=Join-Path $env:RUNNER_TEMP "daemon-version.txt"
+          $err=Join-Path $env:RUNNER_TEMP "daemon-version.err"
+          $proc=Start-Process -FilePath $daemons[0].FullName -ArgumentList "--version" -NoNewWindow -Wait -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          Write-Host "WINDOWS_DAEMON_VERSION_EXIT $($proc.ExitCode)"
+          Get-Content $out -ErrorAction SilentlyContinue | Select-Object -First 12
+          Get-Content $err -ErrorAction SilentlyContinue | Select-Object -First 12
