@@ -136,3 +136,51 @@ jobs:
           Write-Host "WINDOWS_DAEMON_VERSION_EXIT $($proc.ExitCode)"
           Get-Content $out -ErrorAction SilentlyContinue | Select-Object -First 12
           Get-Content $err -ErrorAction SilentlyContinue | Select-Object -First 12
+
+          $env:FEELCOIN_AUDIT_DAEMON = $daemons[0].FullName
+          @'
+          import json, os, pathlib, socket, subprocess, tempfile, time, urllib.request
+          binary=os.environ['FEELCOIN_AUDIT_DAEMON']
+          def free_port():
+              with socket.socket() as s:
+                  s.bind(('127.0.0.1',0))
+                  return s.getsockname()[1]
+          with tempfile.TemporaryDirectory(prefix='feelcoin-windows-rpc-') as root:
+              data=pathlib.Path(root)/'data'
+              data.mkdir()
+              p2p,rpc=free_port(),free_port()
+              cmd=[binary,'--offline','--non-interactive','--data-dir',str(data),
+                   '--rpc-bind-ip','127.0.0.1','--rpc-bind-port',str(rpc),
+                   '--p2p-bind-ip','127.0.0.1','--p2p-bind-port',str(p2p),
+                   '--no-igd','--hide-my-port']
+              print('WINDOWS_OFFLINE_RPC_START',flush=True)
+              with open(pathlib.Path(root)/'daemon.log','wb') as log:
+                  proc=subprocess.Popen(cmd,stdout=log,stderr=subprocess.STDOUT,
+                        creationflags=subprocess.CREATE_NO_WINDOW)
+                  result=None
+                  try:
+                      deadline=time.monotonic()+55
+                      while time.monotonic()<deadline:
+                          if proc.poll() is not None:
+                              print('WINDOWS_DAEMON_EXIT_EARLY',proc.returncode,flush=True)
+                              break
+                          body=json.dumps({'jsonrpc':'2.0','id':'winprobe',
+                              'method':'hard_fork_info','params':{'version':17}}).encode()
+                          req=urllib.request.Request(f'http://127.0.0.1:{rpc}/json_rpc',
+                                  data=body,headers={'Content-Type':'application/json'})
+                          try:
+                              with urllib.request.urlopen(req,timeout=3) as response:
+                                  result=json.load(response)
+                              if result: break
+                          except Exception: time.sleep(2)
+                  finally:
+                      proc.terminate()
+                      try:proc.wait(timeout=6)
+                      except subprocess.TimeoutExpired:proc.kill();proc.wait()
+              print('WINDOWS_HARD_FORK_INFO',json.dumps(result) if result else 'UNAVAILABLE',flush=True)
+              print('WINDOWS_DAEMON_LOG_TAIL',
+                    (pathlib.Path(root)/'daemon.log').read_text(errors='replace')[-2500:],flush=True)
+              if not result or result.get('result',{}).get('earliest_height')!=21205:
+                  raise RuntimeError('Windows bundled V17 activation height NOT verified')
+              print('PASS_WINDOWS_OFFLINE_RPC_V17_HEIGHT_21205',flush=True)
+          '@ | python -
