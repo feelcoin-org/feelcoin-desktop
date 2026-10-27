@@ -29,6 +29,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          sudo apt-get -qq update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            libboost-chrono1.83.0 libboost-filesystem1.83.0 \
+            libboost-program-options1.83.0 libboost-thread1.83.0 \
+            libboost-serialization1.83.0 libhidapi-libusb0 libunbound8
           python3 - <<'PY'
           import glob, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request
 
@@ -97,6 +102,8 @@ jobs:
                       try:p.wait(timeout=7)
                       except subprocess.TimeoutExpired:p.kill();p.wait()
               print('DAEMON_LOG_TAIL', (pathlib.Path(base)/'daemon.log').read_text(errors='replace')[-5000:],flush=True)
+              if result is None or result.get('result',{}).get('earliest_height') != 21205:
+                  raise RuntimeError('Embedded Linux Core V17 activation height was not verified')
           PY
 
   windows-v17:
