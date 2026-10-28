@@ -1,0 +1,315 @@
+/*
+ * Feelcoin Wallet UI V2 — common desktop skin for Windows and Linux.
+ * Neutral surfaces and restrained FEEL gold follow the Android design direction.
+ * CSS only: wallet/RPC behavior and self-custody boundaries remain untouched.
+ */
+body {
+  min-width: 840px;
+  background: #0f1419;
+}
+.app-shell {
+  --wallet-bg: #0f1419;
+  --wallet-side: #101820;
+  --wallet-panel: #17212b;
+  --wallet-panel-soft: #1d2935;
+  --wallet-ink: #eff3f4;
+  --wallet-muted: #9caab7;
+  --wallet-border: #293642;
+  --wallet-accent: #e5a337;
+  --wallet-active: rgba(229,163,55,.13);
+  --wallet-input: #101820;
+  color: var(--wallet-ink);
+  background: var(--wallet-bg);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  transition: background-color .18s ease, color .18s ease;
+}
+.app-shell[data-theme="light"] {
+  --wallet-bg: #f7f9fa;
+  --wallet-side: #ffffff;
+  --wallet-panel: #ffffff;
+  --wallet-panel-soft: #f4f7f8;
+  --wallet-ink: #0f1419;
+  --wallet-muted: #526576;
+  --wallet-border: #dfe7eb;
+  --wallet-accent: #a9650b;
+  --wallet-active: rgba(222,151,40,.10);
+  --wallet-input: #fff;
+}
+.app-shell .sidebar {
+  background: var(--wallet-side);
+  border-right: 1px solid var(--wallet-border);
+  padding: 26px 16px;
+  gap: 28px;
+}
+.app-shell .content {
+  min-width: 0;
+  padding: 30px clamp(22px, 3.5vw, 48px) 24px;
+}
+.app-shell h1, .app-shell h2, .app-shell h3,
+.app-shell .brand strong { color: var(--wallet-ink); }
+.app-shell h1 { font-size: clamp(25px, 2.7vw, 34px); letter-spacing: -.04em; }
+.app-shell h2 { font-size: clamp(25px, 2.9vw, 34px); letter-spacing: -.035em; }
+.app-shell h3 { font-size: 17px; letter-spacing: -.012em; }
+.app-shell .eyebrow { color: var(--wallet-accent); letter-spacing: .08em; }
+.app-shell .subtle, .app-shell .service-note,
+.app-shell .sidebar-note small, .app-shell footer {
+  color: var(--wallet-muted);
+}
+.app-shell .coin-mark, .app-shell .hero-symbol { filter: none; }
+.app-shell .coin-mark { width: 44px; height: 44px; }
+.app-shell .brand span { color: var(--wallet-accent); }
+.app-shell .nav-item {
+  color: var(--wallet-muted);
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  min-height: 45px;
+  padding: 12px 15px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color .15s ease, color .15s ease;
+}
+.app-shell .nav-item:hover:not(:disabled) {
+  background: var(--wallet-panel-soft);
+  color: var(--wallet-ink);
+}
+.app-shell .nav-item.active {
+  color: var(--wallet-accent);
+  background: var(--wallet-active);
+  border-color: var(--wallet-border);
+}
+.app-shell .nav-item:disabled { cursor: default; opacity: .46; }
+.app-shell .sidebar-note {
+  background: var(--wallet-panel-soft);
+  border: 1px solid var(--wallet-border);
+  border-radius: 14px;
+}
+.app-shell .sidebar-note strong { color: var(--wallet-ink); }
+.app-shell .card, .app-shell .page-card, .app-shell .hero-card {
+  background: var(--wallet-panel);
+  border: 1px solid var(--wallet-border);
+  border-radius: 18px;
+  box-shadow: none;
+}
+.app-shell .hero-card { margin-top: 24px; padding: 30px; min-height: 185px; }
+.app-shell .hero-card p:not(.eyebrow) { color: var(--wallet-muted); }
+.app-shell .hero-card p.hero-tagline:not(.eyebrow) {
+  color: var(--wallet-ink);
+  font-weight: 750;
+  font-size: 16px;
+  margin: 16px 0 9px;
+  letter-spacing: -.015em;
+}
+.app-shell .grid { gap: 14px; }
+.app-shell .card { padding: 24px; }
+.app-shell .page-card { padding: clamp(22px, 3vw, 32px); }
+.app-shell .network-strip {
+  background: var(--wallet-border);
+  border-color: var(--wallet-border);
+  border-radius: 16px;
+  gap: 1px;
+}
+.app-shell .network-strip div {
+  background: var(--wallet-panel);
+  min-width: 0;
+}
+.app-shell .network-strip span,
+.app-shell .node-summary span,
+.app-shell .ports span,
+.app-shell .metric span,
+.app-shell .balance-line span,
+.app-shell .node-details span,
+.app-shell .form-grid label > span,
+.app-shell .send-form label > span,
+.app-shell .restore-panel label > span,
+.app-shell .secret-label,
+.app-shell .secret-heading .secret-label {
+  color: var(--wallet-muted);
+}
+.app-shell .network-strip strong,
+.app-shell .node-summary strong,
+.app-shell .ports strong,
+.app-shell .metric strong,
+.app-shell .balance-line strong,
+.app-shell .node-details strong,
+.app-shell .principles strong {
+  color: var(--wallet-ink);
+}
+.app-shell .metric, .app-shell .balance-line,
+.app-shell .node-details {
+  border-color: var(--wallet-border);
+}
+.app-shell .ports div, .app-shell .principles div,
+.app-shell .node-summary div, .app-shell .restore-panel,
+.app-shell .tx-row, .app-shell .secret-section,
+.app-shell .backup-confirm, .app-shell .coming-soon {
+  background: var(--wallet-panel-soft);
+  border: 1px solid var(--wallet-border);
+  border-radius: 12px;
+}
+.app-shell .principles span, .app-shell .tx-row span,
+.app-shell .backup-confirm span, .app-shell .recovery-warning span {
+  color: var(--wallet-muted) !important;
+}
+.app-shell input, .app-shell textarea {
+  background: var(--wallet-input);
+  border: 1px solid var(--wallet-border);
+  color: var(--wallet-ink);
+  border-radius: 11px;
+  font-size: 14px;
+}
+.app-shell input:focus, .app-shell textarea:focus,
+.app-shell button:focus-visible {
+  outline: 2px solid var(--wallet-accent);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+/* Saved-wallet picker: file names only, matching light/dark Wallet V2. */
+.app-shell .wallet-name-field { display: grid; gap: 7px; min-width: 0; }
+.app-shell .wallet-name-field label > span { color: var(--wallet-muted); font-size: 11px; font-weight: 700; letter-spacing: .05em; }
+.app-shell .wallet-name-picker { position: relative; }
+.app-shell .wallet-name-picker > input { padding-right: 50px; }
+.app-shell .wallet-name-trigger {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--wallet-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+}
+.app-shell .wallet-name-trigger:hover:not(:disabled) { background: var(--wallet-panel-soft); color: var(--wallet-ink); }
+.app-shell .wallet-name-trigger:disabled { opacity: .45; cursor: default; }
+.app-shell .wallet-name-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--wallet-panel);
+  border: 1px solid var(--wallet-border);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.16);
+}
+.app-shell .wallet-name-options-title {
+  padding: 8px 10px;
+  color: var(--wallet-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
+.app-shell .wallet-name-option {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--wallet-ink);
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+}
+.app-shell .wallet-name-option:hover,
+.app-shell .wallet-name-option:focus-visible,
+.app-shell .wallet-name-option[aria-selected="true"] {
+  color: var(--wallet-accent);
+  background: var(--wallet-active);
+}
+.app-shell .wallet-name-empty { margin: 5px 10px 10px; color: var(--wallet-muted); font-size: 12px; }
+.app-shell .wallet-name-error { color: #d57b7b; font-size: 12px; }
+.app-shell .primary {
+  background: #ecaa3e;
+  color: #271905;
+  border-radius: 999px;
+  box-shadow: none;
+  font-weight: 750;
+}
+.app-shell .secondary {
+  color: var(--wallet-ink);
+  background: var(--wallet-panel-soft);
+  border: 1px solid var(--wallet-border);
+  border-radius: 999px;
+}
+.app-shell .primary:disabled, .app-shell .secondary:disabled {
+  cursor: default;
+  opacity: .48;
+}
+.app-shell .status, .app-shell .theme-toggle {
+  border: 1px solid var(--wallet-border);
+  background: var(--wallet-panel);
+  color: var(--wallet-muted);
+}
+.app-shell .status.online { color: #54b76d; }
+.app-shell .theme-toggle {
+  align-self: flex-end;
+  border-radius: 999px;
+  padding: 9px 14px;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+.app-shell .theme-toggle:hover {
+  color: var(--wallet-ink);
+  background: var(--wallet-panel-soft);
+}
+.app-shell .address-box, .app-shell .receive-address,
+.app-shell .secret-box, .app-shell .form-message,
+.app-shell .tx-row strong, .app-shell .seed-box,
+.app-shell .secret-heading strong {
+  color: var(--wallet-ink);
+}
+.app-shell .address-box, .app-shell .receive-address,
+.app-shell .secret-box, .app-shell .form-message {
+  background: var(--wallet-panel-soft);
+  border: 1px solid var(--wallet-border);
+}
+.app-shell .recovery-warning {
+  background: var(--wallet-panel-soft);
+  border-color: var(--wallet-border);
+}
+.app-shell .recovery-warning strong { color: var(--wallet-accent); }
+.app-shell .empty-state {
+  border-color: var(--wallet-border);
+  color: var(--wallet-muted);
+}
+.app-shell .receive-address-label { color: var(--wallet-accent); }
+.app-shell .receive-qr-card { box-shadow: none; }
+.app-shell .send-hint { margin: -4px 0 0; color: var(--wallet-muted); font-size: 12px; line-height: 1.5; }
+.app-shell .banner { background: var(--wallet-panel-soft); border-color: var(--wallet-border); }
+.app-shell[data-theme="light"] .status.online { color: #197542; }
+.app-shell[data-theme="light"] .status.online span { background: #23854d; }
+.app-shell[data-theme="light"] .balance-hero { color: #9b600f; }
+.app-shell[data-theme="light"] .sidebar-note .shield { color: #98610e; }
+.app-shell[data-theme="light"] .secret-box { background: #f6f8f9; }
+@media (max-width: 1120px) {
+  .app-shell { grid-template-columns: 212px minmax(0,1fr); }
+  .app-shell .grid { grid-template-columns: 1fr; }
+  .app-shell .principles { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .app-shell .network-strip { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .app-shell .node-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .app-shell .hero-symbol { margin-right: 0; width: 94px; height: 94px; flex-basis: 94px; }
+  .app-shell .topbar { gap: 16px; }
+}
+@media (max-width: 900px) {
+  .app-shell { grid-template-columns: 188px minmax(0,1fr); }
+  .app-shell .sidebar { padding: 22px 10px; }
+  .app-shell .content { padding: 22px 18px; }
+  .app-shell .hero-symbol { display: none; }
+  .app-shell .hero-card { min-height: 0; }
+  .app-shell .page-heading-row { flex-wrap: wrap; }
+  .app-shell .status-stack { min-width: 135px; }
+  .app-shell .recovery-key-grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell, .app-shell .nav-item { transition: none; }
+}

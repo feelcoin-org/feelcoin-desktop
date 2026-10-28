@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.feelcoin.desktop</id>
+
+  <name>Feelcoin Desktop</name>
+  <summary>Official Feelcoin desktop wallet</summary>
+
+  <developer id="org.feelcoin">
+    <name>Feelcoin</name>
+  </developer>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>BSD-3-Clause</project_license>
+
+  <description>
+    <p>
+      Feelcoin Desktop is the official desktop wallet for the Feelcoin network.
+      It includes the Feelcoin daemon and wallet RPC for a self-contained wallet experience.
+    </p>
+
+    <ul>
+      <li>Create, open and restore Feelcoin wallets</li>
+      <li>Send and receive FEEL</li>
+      <li>Display receive QR codes</li>
+      <li>Synchronize with the Feelcoin network using the bundled local daemon</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">Feelcoin Desktop.desktop</launchable>
+
+  <url type="homepage">https://feelcoin.org</url>
+  <url type="bugtracker">https://github.com/feelcoin-org/feelcoin-desktop/issues</url>
+  <url type="vcs-browser">https://github.com/feelcoin-org/feelcoin-desktop</url>
+
+  <categories>
+    <category>Finance</category>
+  </categories>
+</component>
