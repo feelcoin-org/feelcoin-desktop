@@ -1,0 +1,243 @@
+name: Feelcoin Desktop Wallet Beta 3 Official Release
+
+on:
+  push:
+    branches:
+      - release/desktop-v0.2.0-beta.3-v2-native
+    paths:
+      - '.github/workflows/wallet-v2-beta3-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: V2 test ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+            bundles: nsis
+          - platform: linux-amd64
+            os: ubuntu-22.04
+            bundles: deb,appimage
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup MSYS2 for Windows Feelcoin Core
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ccache
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zeromq
+            mingw-w64-x86_64-libsodium
+            mingw-w64-x86_64-hidapi
+            mingw-w64-x86_64-protobuf-c
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-unbound
+            git
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Install dependencies
+        run: npm ci
+      - name: Check TypeScript and frontend
+        run: npm run build
+      - name: Check backend
+        working-directory: src-tauri
+        run: cargo check
+      - name: Build official Windows Feelcoin Core (never package Linux binaries)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v0.2.1 --recurse-submodules https://github.com/feelcoin-org/feelcoin.git core
+          cd core
+          git submodule update --init --recursive --force
+
+          # Core v0.2.1 uses older C++ standards, but current MSYS2
+          # Protobuf/Abseil packages require at least C++17.
+          # Change ONLY the temporary CI clone; no upstream source is rewritten.
+          grep -Fq 'set(CMAKE_CXX_STANDARD 14)' CMakeLists.txt
+          grep -Fq '"-DCMAKE_CXX_STANDARD=11"' cmake/CheckTrezor.cmake
+          sed -i 's/set(CMAKE_CXX_STANDARD 14)/set(CMAKE_CXX_STANDARD 17)/' CMakeLists.txt
+          sed -i 's/"-DCMAKE_CXX_STANDARD=11"/"-DCMAKE_CXX_STANDARD=17"/' cmake/CheckTrezor.cmake
+          grep -Fq 'set(CMAKE_CXX_STANDARD 17)' CMakeLists.txt
+          grep -Fq '"-DCMAKE_CXX_STANDARD=17"' cmake/CheckTrezor.cmake
+
+          make release-static-win64 -j2
+
+          daemon="$(find build -type f -name feelcoind.exe -print -quit)"
+          wallet_rpc="$(find build -type f -name feelcoin-wallet-rpc.exe -print -quit)"
+          test -n "$daemon" && test -n "$wallet_rpc"
+          test -s "$daemon" && test -s "$wallet_rpc"
+
+          target="../src-tauri/resources/bin"
+          mkdir -p "$target"
+          rm -f "$target/feelcoind" "$target/feelcoin-wallet-rpc"
+          rm -f ../src-tauri/resources/lib/*.so*
+          cp "$daemon" "$target/feelcoind.exe"
+          cp "$wallet_rpc" "$target/feelcoin-wallet-rpc.exe"
+
+          "$target/feelcoind.exe" --version
+          "$target/feelcoin-wallet-rpc.exe" --version
+          sha256sum "$target/feelcoind.exe" "$target/feelcoin-wallet-rpc.exe"
+
+      - name: Verify native binaries and exclude other OS binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="src-tauri/resources"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            test -s "$root/bin/feelcoind.exe"
+            test -s "$root/bin/feelcoin-wallet-rpc.exe"
+            # MSYS/Git Bash may implicitly resolve "feelcoind" to "feelcoind.exe".
+            # Inspect directory entries for exact names instead of test -e.
+            if find "$root/bin" -maxdepth 1 -type f \( -name 'feelcoind' -o -name 'feelcoin-wallet-rpc' \) | grep -q .; then
+              echo "ERROR: Linux executables remain in the Windows bundle input"
+              exit 1
+            fi
+            if find "$root/lib" -type f -name '*.so*' | grep -q .; then
+              echo "ERROR: Linux shared libraries remain in the Windows payload"
+              exit 1
+            fi
+            for binary in "$root/bin/feelcoind.exe" "$root/bin/feelcoin-wallet-rpc.exe"; do
+              test "$(od -An -tx1 -N2 "$binary" | tr -d ' \n')" = "4d5a" || {
+                echo "ERROR: Windows component is not a PE executable: $binary"
+                exit 1
+              }
+            done
+          else
+            test -s "$root/bin/feelcoind"
+            test -s "$root/bin/feelcoin-wallet-rpc"
+            test ! -e "$root/bin/feelcoind.exe"
+            test ! -e "$root/bin/feelcoin-wallet-rpc.exe"
+            for binary in "$root/bin/feelcoind" "$root/bin/feelcoin-wallet-rpc"; do
+              test "$(od -An -tx1 -N4 "$binary" | tr -d ' \n')" = "7f454c46" || {
+                echo "ERROR: Linux component is not an ELF executable: $binary"
+                exit 1
+              }
+            done
+          fi
+
+      - name: Set explicit platform-specific bundled resources
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+          config.bundle.resources = process.platform === 'win32'
+            ? ['resources/bin/feelcoind.exe', 'resources/bin/feelcoin-wallet-rpc.exe']
+            : ['resources/bin/feelcoind', 'resources/bin/feelcoin-wallet-rpc', 'resources/lib/libcom_err.so.2'];
+          fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          console.log(process.platform, config.bundle.resources);
+          NODE
+
+      - name: Generate platform icons
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+      - name: Use supported icon files
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const file='src-tauri/tauri.conf.json';
+          const config=JSON.parse(fs.readFileSync(file,'utf8'));
+          config.bundle.icon=['icons/32x32.png','icons/128x128.png','icons/128x128@2x.png','icons/icon.ico'];
+          fs.writeFileSync(file,JSON.stringify(config,null,2)+'\n');
+          NODE
+      - name: Build native Beta 3 installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        with:
+          args: --bundles ${{ matrix.bundles }}
+      - name: Upload verified platform release candidates
+        uses: actions/upload-artifact@v4
+        with:
+          name: feelcoin-wallet-v2-beta3-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish Feelcoin Desktop Wallet Beta 3
+    needs: [build]
+    if: github.ref == 'refs/heads/release/desktop-v0.2.0-beta.3-v2-native'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Fetch successful Windows and Linux candidates
+        uses: actions/download-artifact@v4
+        with:
+          pattern: feelcoin-wallet-v2-beta3-*
+          path: release-input
+          merge-multiple: true
+
+      - name: Audit release bundle and calculate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-dist
+          find release-input -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.exe' \) -exec cp {} release-dist/ \;
+          test "$(find release-dist -maxdepth 1 -type f -name '*.deb' | wc -l)" -eq 1
+          test "$(find release-dist -maxdepth 1 -type f -name '*.AppImage' | wc -l)" -eq 1
+          test "$(find release-dist -maxdepth 1 -type f -name '*.exe' | wc -l)" -eq 1
+          cd release-dist
+          sha256sum *.deb *.AppImage *.exe > SHA256SUMS.txt
+          sha256sum -c SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish GitHub Beta 3 release only after all verifications
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh release view v0.2.0-beta.3 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'ERROR: v0.2.0-beta.3 already exists; refusing to overwrite assets.'
+            exit 1
+          fi
+          cat > release-notes.md <<'EOF'
+          # Feelcoin Desktop Wallet V2 — Beta 3
+
+          The official Feelcoin desktop wallet, with updated Windows and Linux packaging.
+
+          - Updated modern light/dark wallet interface and clearer welcome screen
+          - Locally stored wallet-name dropdown (wallet keys and recovery phrases stay private)
+          - Native Feelcoin Core binaries built separately for Windows and Linux
+          - Windows installer contains Windows-native components only; Linux includes Linux-native components
+          - Linux DEB, Linux AppImage, Windows x64 setup EXE and SHA-256 checksums
+
+          **Beta software:** Securely back up your wallet recovery phrase offline before upgrading.
+          Linux wallet UI and local wallet dropdown were user-tested; Windows runtime behavior
+          still needs independent user verification. Windows packages are not advertised as
+          code-signed. Do not disable Windows security protections to run this wallet. 
+          Report antivirus detections, including exact detection names, for investigation.
+          EOF
+          gh release create v0.2.0-beta.3 release-dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Feelcoin Desktop Wallet V2 Beta 3 — Windows & Linux" \
+            --notes-file release-notes.md --prerelease

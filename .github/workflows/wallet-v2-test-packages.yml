@@ -1,0 +1,168 @@
+name: Wallet V2 Windows Linux Test Packages
+
+on:
+  push:
+    branches:
+      - feature/wallet-ui-v2-windows-linux-20261012
+    paths:
+      - '.github/workflows/wallet-v2-test-packages.yml'
+      - 'src/**'
+      - 'src-tauri/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'public/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: V2 test ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            os: windows-latest
+            bundles: nsis
+          - platform: linux-amd64
+            os: ubuntu-22.04
+            bundles: deb
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup MSYS2 for Windows Feelcoin Core
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          cache: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            make
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ccache
+            mingw-w64-x86_64-boost
+            mingw-w64-x86_64-openssl
+            mingw-w64-x86_64-zeromq
+            mingw-w64-x86_64-libsodium
+            mingw-w64-x86_64-hidapi
+            mingw-w64-x86_64-protobuf-c
+            mingw-w64-x86_64-libusb
+            mingw-w64-x86_64-unbound
+            git
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux packaging dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libssl-dev
+      - name: Install dependencies
+        run: npm ci
+      - name: Check TypeScript and frontend
+        run: npm run build
+      - name: Check backend
+        working-directory: src-tauri
+        run: cargo check
+      - name: Build official Windows Feelcoin Core (never package Linux binaries)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch v0.2.1 --recurse-submodules https://github.com/feelcoin-org/feelcoin.git core
+          cd core
+          git submodule update --init --recursive --force
+          make release-static-win64 -j2
+
+          daemon="$(find build -type f -name feelcoind.exe -print -quit)"
+          wallet_rpc="$(find build -type f -name feelcoin-wallet-rpc.exe -print -quit)"
+          test -n "$daemon" && test -n "$wallet_rpc"
+          test -s "$daemon" && test -s "$wallet_rpc"
+
+          target="../src-tauri/resources/bin"
+          mkdir -p "$target"
+          rm -f "$target/feelcoind" "$target/feelcoin-wallet-rpc"
+          rm -f ../src-tauri/resources/lib/*.so*
+          cp "$daemon" "$target/feelcoind.exe"
+          cp "$wallet_rpc" "$target/feelcoin-wallet-rpc.exe"
+
+          "$target/feelcoind.exe" --version
+          "$target/feelcoin-wallet-rpc.exe" --version
+          sha256sum "$target/feelcoind.exe" "$target/feelcoin-wallet-rpc.exe"
+
+      - name: Verify native binaries and exclude other OS binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="src-tauri/resources"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            test -s "$root/bin/feelcoind.exe"
+            test -s "$root/bin/feelcoin-wallet-rpc.exe"
+            test ! -e "$root/bin/feelcoind"
+            test ! -e "$root/bin/feelcoin-wallet-rpc"
+            if find "$root/lib" -type f -name '*.so*' | grep -q .; then
+              echo "ERROR: Linux shared libraries remain in the Windows payload"
+              exit 1
+            fi
+            for binary in "$root/bin/feelcoind.exe" "$root/bin/feelcoin-wallet-rpc.exe"; do
+              test "$(od -An -tx1 -N2 "$binary" | tr -d ' \n')" = "4d5a" || {
+                echo "ERROR: Windows component is not a PE executable: $binary"
+                exit 1
+              }
+            done
+          else
+            test -s "$root/bin/feelcoind"
+            test -s "$root/bin/feelcoin-wallet-rpc"
+            test ! -e "$root/bin/feelcoind.exe"
+            test ! -e "$root/bin/feelcoin-wallet-rpc.exe"
+            for binary in "$root/bin/feelcoind" "$root/bin/feelcoin-wallet-rpc"; do
+              test "$(od -An -tx1 -N4 "$binary" | tr -d ' \n')" = "7f454c46" || {
+                echo "ERROR: Linux component is not an ELF executable: $binary"
+                exit 1
+              }
+            done
+          fi
+
+      - name: Set explicit platform-specific bundled resources
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const file = 'src-tauri/tauri.conf.json';
+          const config = JSON.parse(fs.readFileSync(file, 'utf8'));
+          config.bundle.resources = process.platform === 'win32'
+            ? ['resources/bin/feelcoind.exe', 'resources/bin/feelcoin-wallet-rpc.exe']
+            : ['resources/bin/feelcoind', 'resources/bin/feelcoin-wallet-rpc', 'resources/lib/libcom_err.so.2'];
+          fs.writeFileSync(file, JSON.stringify(config, null, 2) + '\n');
+          console.log(process.platform, config.bundle.resources);
+          NODE
+
+      - name: Generate platform icons
+        run: npx tauri icon public/feelcoin-logo.png --fit contain
+      - name: Use supported icon files
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const file='src-tauri/tauri.conf.json';
+          const config=JSON.parse(fs.readFileSync(file,'utf8'));
+          config.bundle.icon=['icons/32x32.png','icons/128x128.png','icons/128x128@2x.png','icons/icon.ico'];
+          fs.writeFileSync(file,JSON.stringify(config,null,2)+'\n');
+          NODE
+      - name: Build installers (testing only)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: --bundles ${{ matrix.bundles }}
+      - name: Upload private test artifacts (no release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: feelcoin-wallet-v2-test-${{ matrix.platform }}
+          path: |
+            src-tauri/target/release/bundle/**/*.exe
+            src-tauri/target/release/bundle/**/*.deb
+          if-no-files-found: error
+          retention-days: 7
