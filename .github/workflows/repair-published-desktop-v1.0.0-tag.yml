@@ -1,0 +1,102 @@
+name: Correct built-in Desktop v1.0.0 source archive links
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-published-desktop-v1.0.0-tag.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-v1-tag-correction
+  cancel-in-progress: false
+
+jobs:
+  correct-source:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ORIGINAL_SHA: b89c7630a4fd530217716e060cd47a9631f8a8d6
+      CORRECTED_SHA: f8438a7577c377fcfe38e529688967c5f62ad010
+      RELEASE_TAG: v1.0.0
+    steps:
+      - name: Fetch full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify corrected source and preserve original provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = "feelcoin-org/feelcoin-desktop"
+          git cat-file -e "$CORRECTED_SHA^{commit}"
+          git cat-file -e "$ORIGINAL_SHA^{commit}"
+          git merge-base --is-ancestor "$ORIGINAL_SHA" "$CORRECTED_SHA"
+          python3 - <<'PY'
+          import json, subprocess, tomllib
+          from os import environ
+          sha=environ['CORRECTED_SHA']
+          def read(path):
+              return subprocess.check_output(['git','show',f'{sha}:{path}'])
+          pkg=json.loads(read('package.json'))
+          cfg=json.loads(read('src-tauri/tauri.conf.json'))
+          cargo=tomllib.loads(read('src-tauri/Cargo.toml').decode())
+          npm_lock=json.loads(read('package-lock.json'))
+          assert pkg['version']==cfg['version']==cargo['package']['version']==npm_lock['version']==npm_lock['packages']['']['version']=='1.0.0'
+          assert len(read('src-tauri/src/lib.rs'))>20000
+          assert len(read('src/App.tsx'))>20000
+          print('Checked exact corrected source commit and all source versions.')
+          PY
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+          echo "Existing release tag points to: $current"
+          case "$current" in
+            "$ORIGINAL_SHA"|"$CORRECTED_SHA") ;;
+            *) echo "Unexpected release tag SHA; refusing to overwrite" >&2; exit 1 ;;
+          esac
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.assets[] | [.name,.digest] | @tsv' | LC_ALL=C sort > /tmp/desktop-release-assets-before.tsv
+
+      - name: Make automatic Source code ZIP and TAR.GZ use the corrected source
+        shell: bash
+        run: |
+          set -euo pipefail
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+          if [ "$current" = "$ORIGINAL_SHA" ]; then
+            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG" \
+              -f sha="$CORRECTED_SHA" -F force=true --jq '.object.sha'
+          fi
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)" = "$CORRECTED_SHA"
+          echo 'Automatic GitHub source archive links now resolve to corrected source SHA.'
+
+      - name: Amend release notes and target without modifying installers
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --json body --jq '.body' > /tmp/release-notes-old.md
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          text=Path('/tmp/release-notes-old.md').read_text()
+          start='## Corrected source archive (October 28, 2026)'
+          if start in text: text=text[:text.index(start)].rstrip()
+          sha=os.environ['CORRECTED_SHA']
+          old=os.environ['ORIGINAL_SHA']
+          notice=f"""## Source code correction (October 28, 2026)
+
+          The built-in GitHub **Source code (zip)** and **Source code (tar.gz)** archives now correspond to the corrected Desktop v1.0.0 source commit [{sha[:12]}](https://github.com/feelcoin-org/feelcoin-desktop/tree/{sha}). This restores the full desktop wallet source and aligns its source version metadata to v1.0.0.
+
+          **Historical provenance:** This release originally pointed to October 15 commit [{old[:12]}](https://github.com/feelcoin-org/feelcoin-desktop/tree/{old}), with v0.3.0 source metadata. Its `v1.0.0` tag was moved on October 28 solely to correct the automatic source downloads.
+
+          Existing Windows and Linux installers and their SHA-256 digests were not modified, rebuilt or replaced. The corrected archive is a subsequent source correction and is **not** an assertion of bit-for-bit reproducibility of the original installers.
+
+          """
+          Path('/tmp/release-notes-new.md').write_text(text+'\n\n---\n\n'+notice)
+          PY
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --target "$CORRECTED_SHA" --notes-file /tmp/release-notes-new.md
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" --jq '.assets[] | [.name,.digest] | @tsv' | LC_ALL=C sort > /tmp/desktop-release-assets-after.tsv
+          diff -u /tmp/desktop-release-assets-before.tsv /tmp/desktop-release-assets-after.tsv
+          actual="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" --jq .object.sha)"
+          test "$actual" = "$CORRECTED_SHA"
+          echo "SUCCESS: GitHub auto source links use the corrected commit and ALL release assets are byte-identical."
