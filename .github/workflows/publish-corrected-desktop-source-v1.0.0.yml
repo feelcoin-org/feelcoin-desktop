@@ -1,104 +1,92 @@
-name: Attach corrected v1.0.0 Desktop source to existing release
+name: Remove duplicate v1.0.0 source attachments
 
 on:
   push:
     branches: [main]
     paths:
       - .github/workflows/publish-corrected-desktop-source-v1.0.0.yml
-  workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: corrected-desktop-source-v1.0.0
+  group: desktop-v1-source-deduplication
   cancel-in-progress: false
 
 jobs:
-  publish-corrected-source:
+  remove-extra-source:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CORRECTED_SOURCE_SHA: f8438a7577c377fcfe38e529688967c5f62ad010
     steps:
-      - name: Check out source history
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Archive the corrected and merged source commit (no rebuild)
+      - name: Check GitHub built-in source archives point to corrected source
         shell: bash
-        env:
-          SOURCE_SHA: f8438a7577c377fcfe38e529688967c5f62ad010
         run: |
           set -euo pipefail
-          test "$GITHUB_REPOSITORY" = 'feelcoin-org/feelcoin-desktop'
-          test "$(git rev-parse "$SOURCE_SHA^{commit}")" = "$SOURCE_SHA"
-          test "$(git cat-file -p "$SOURCE_SHA:package.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')" = "1.0.0"
-          git archive --format=zip --prefix=feelcoin-desktop-v1.0.0-corrected-source/ --output=Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip "$SOURCE_SHA"
+          test "$GITHUB_REPOSITORY" = "feelcoin-org/feelcoin-desktop"
+          tag_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v1.0.0" --jq '.object.sha')"
+          test "$tag_sha" = "$CORRECTED_SOURCE_SHA" || { echo "Corrected tag is not present; refusing to delete supplemental archives" >&2; exit 1; }
+          echo "Verified automatic Source code archives point to $tag_sha"
+
+      - name: Snapshot published installers and identify exact redundant asset IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v1.0.0" > /tmp/feelcoin-before.json
           python3 - <<'PY'
-          import json,tomllib,zipfile
-          name='Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip'
-          p='feelcoin-desktop-v1.0.0-corrected-source/'
-          with zipfile.ZipFile(name) as z:
-              pkg=json.loads(z.read(p+'package.json'))
-              cfg=json.loads(z.read(p+'src-tauri/tauri.conf.json'))
-              cargo=tomllib.loads(z.read(p+'src-tauri/Cargo.toml').decode())
-              assert pkg['version']==cfg['version']==cargo['package']['version']=='1.0.0'
-              assert len(z.read(p+'src-tauri/src/lib.rs'))>20000, 'Wallet backend missing'
-              assert len(z.read(p+'src/App.tsx'))>20000, 'Wallet UI missing'
-              assert z.testzip() is None, 'Corrupted archive'
-          print('Corrected source validated; original release binaries untouched.')
+          import json
+          r=json.load(open('/tmp/feelcoin-before.json'))
+          assert r['tag_name']=='v1.0.0'
+          assert r['target_commitish']=='f8438a7577c377fcfe38e529688967c5f62ad010'
+          expected={
+            'Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip':686136719,
+            'Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip.sha256':686136811,
+          }
+          assets={a['name']:a for a in r['assets']}
+          for name,aid in expected.items():
+            if name in assets:
+              assert assets[name]['id']==aid, f'Unexpected asset ID for {name}; fail closed'
+          kept={a['name']:[a['id'],a.get('digest')] for a in r['assets'] if a['name'] not in expected}
+          assert len(kept)==8 and len([n for n in kept if n.startswith('Feelcoin-v1.0.0-Ubuntu-')])==6
+          assert 'Feelcoin.Desktop_1.0.0_x64-setup.exe' in kept
+          assert 'SHA256SUMS.txt' in kept
+          json.dump(kept,open('/tmp/feelcoin-kept.json','w'))
+          print('All original installers and checksums accounted for; redundant assets identified.')
           PY
-          sha256sum Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip > Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip.sha256
 
-      - name: Attach corrected source and checksum to existing v1.0.0 release
+      - name: Remove only the two redundant manual source attachments
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          release='v1.0.0'
-          for file in Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip.sha256; do
-            if gh release view "$release" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq "$file"; then
-              echo "Existing asset preserved: $file"
+          for item in \
+            "686136719:Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip" \
+            "686136811:Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip.sha256"; do
+            id="${item%%:*}"
+            name="${item#*:}"
+            actual="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/v1.0.0" --jq ".assets[] | select(.name == \"$name\") | .id")"
+            if [ -z "$actual" ]; then
+              echo "Already absent: $name"
+            elif [ "$actual" = "$id" ]; then
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$id" >/dev/null
+              echo "Removed redundant attachment: $name"
             else
-              gh release upload "$release" "$file" --repo "$GITHUB_REPOSITORY"
+              echo "Asset identity mismatch for $name; refusing" >&2; exit 1
             fi
           done
 
-      - name: Clearly identify corrected source in release notes
+      - name: Verify exactly the original installer assets remain unchanged
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: f8438a7577c377fcfe38e529688967c5f62ad010
         run: |
           set -euo pipefail
-          gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" --json body --jq .body > old-notes.md
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v1.0.0" > /tmp/feelcoin-after.json
           python3 - <<'PY'
-          from pathlib import Path
-          import os
-          old=Path('old-notes.md').read_text()
-          marker='## Corrected source archive (October 28, 2026)'
-          if marker in old:
-              print('Release notes already contain corrected source link.')
-              Path('new-notes.md').write_text(old)
-          else:
-              base='https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/'
-              name='Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip'
-              sha=os.environ['SOURCE_SHA']
-              note=f"""## Corrected source archive (October 28, 2026)
-
-          **The original v1.0.0 source tag points to older wallet source metadata.** The corrected Desktop v1.0.0 source is attached to this release as a separate asset:
-
-          - [Download corrected Desktop source ZIP]({base}{name})
-          - [SHA-256 checksum]({base}{name}.sha256)
-          - [Inspect the corrected source commit](https://github.com/feelcoin-org/feelcoin-desktop/tree/{sha})
-
-          The Windows and Linux installers and existing checksums were **not modified or rebuilt**. GitHub's automatically generated `Source code (zip/tar.gz)` links below still point to the original historical tag; use the **corrected source ZIP attachment** instead. The corrected archive is a subsequent source correction, not a claim that previously uploaded installers were built bit-for-bit from that commit.
-
-          ---
-
-          """
-              Path('new-notes.md').write_text(old.rstrip()+'\n\n---\n\n'+note)
+          import json
+          before=json.load(open('/tmp/feelcoin-kept.json'))
+          after=json.load(open('/tmp/feelcoin-after.json'))
+          current={a['name']:[a['id'],a.get('digest')] for a in after['assets']}
+          assert current==before, 'Asset list/digests changed unexpectedly'
+          assert after['target_commitish']=='f8438a7577c377fcfe38e529688967c5f62ad010'
+          print('SUCCESS: six Linux packages, Windows installer, original SHA256SUMS preserved.')
+          print('Only automatic corrected Source code (zip/tar.gz) archives remain.')
           PY
-          gh release edit v1.0.0 --repo "$GITHUB_REPOSITORY" --notes-file new-notes.md
-          gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" --json assets,body --jq '{sourceAssets:[.assets[].name | select(contains("corrected-source"))],noticePresent:(.body | contains("Corrected source archive"))}'
