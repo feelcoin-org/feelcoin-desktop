@@ -1,0 +1,104 @@
+name: Attach corrected v1.0.0 Desktop source to existing release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-corrected-desktop-source-v1.0.0.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: corrected-desktop-source-v1.0.0
+  cancel-in-progress: false
+
+jobs:
+  publish-corrected-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Archive the corrected and merged source commit (no rebuild)
+        shell: bash
+        env:
+          SOURCE_SHA: f8438a7577c377fcfe38e529688967c5f62ad010
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = 'feelcoin-org/feelcoin-desktop'
+          test "$(git rev-parse "$SOURCE_SHA^{commit}")" = "$SOURCE_SHA"
+          test "$(git cat-file -p "$SOURCE_SHA:package.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["version"])')" = "1.0.0"
+          git archive --format=zip --prefix=feelcoin-desktop-v1.0.0-corrected-source/ --output=Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip "$SOURCE_SHA"
+          python3 - <<'PY'
+          import json,tomllib,zipfile
+          name='Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip'
+          p='feelcoin-desktop-v1.0.0-corrected-source/'
+          with zipfile.ZipFile(name) as z:
+              pkg=json.loads(z.read(p+'package.json'))
+              cfg=json.loads(z.read(p+'src-tauri/tauri.conf.json'))
+              cargo=tomllib.loads(z.read(p+'src-tauri/Cargo.toml').decode())
+              assert pkg['version']==cfg['version']==cargo['package']['version']=='1.0.0'
+              assert len(z.read(p+'src-tauri/src/lib.rs'))>20000, 'Wallet backend missing'
+              assert len(z.read(p+'src/App.tsx'))>20000, 'Wallet UI missing'
+              assert z.testzip() is None, 'Corrupted archive'
+          print('Corrected source validated; original release binaries untouched.')
+          PY
+          sha256sum Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip > Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip.sha256
+
+      - name: Attach corrected source and checksum to existing v1.0.0 release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          release='v1.0.0'
+          for file in Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip.sha256; do
+            if gh release view "$release" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -Fxq "$file"; then
+              echo "Existing asset preserved: $file"
+            else
+              gh release upload "$release" "$file" --repo "$GITHUB_REPOSITORY"
+            fi
+          done
+
+      - name: Clearly identify corrected source in release notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: f8438a7577c377fcfe38e529688967c5f62ad010
+        run: |
+          set -euo pipefail
+          gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" --json body --jq .body > old-notes.md
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          old=Path('old-notes.md').read_text()
+          marker='## Corrected source archive (October 28, 2026)'
+          if marker in old:
+              print('Release notes already contain corrected source link.')
+              Path('new-notes.md').write_text(old)
+          else:
+              base='https://github.com/feelcoin-org/feelcoin-desktop/releases/download/v1.0.0/'
+              name='Feelcoin-Desktop-v1.0.0-corrected-source-20261028.zip'
+              sha=os.environ['SOURCE_SHA']
+              note=f"""## Corrected source archive (October 28, 2026)
+
+          **The original v1.0.0 source tag points to older wallet source metadata.** The corrected Desktop v1.0.0 source is attached to this release as a separate asset:
+
+          - [Download corrected Desktop source ZIP]({base}{name})
+          - [SHA-256 checksum]({base}{name}.sha256)
+          - [Inspect the corrected source commit](https://github.com/feelcoin-org/feelcoin-desktop/tree/{sha})
+
+          The Windows and Linux installers and existing checksums were **not modified or rebuilt**. GitHub's automatically generated `Source code (zip/tar.gz)` links below still point to the original historical tag; use the **corrected source ZIP attachment** instead. The corrected archive is a subsequent source correction, not a claim that previously uploaded installers were built bit-for-bit from that commit.
+
+          ---
+
+          """
+              Path('new-notes.md').write_text(old.rstrip()+'\n\n---\n\n'+note)
+          PY
+          gh release edit v1.0.0 --repo "$GITHUB_REPOSITORY" --notes-file new-notes.md
+          gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" --json assets,body --jq '{sourceAssets:[.assets[].name | select(contains("corrected-source"))],noticePresent:(.body | contains("Corrected source archive"))}'
