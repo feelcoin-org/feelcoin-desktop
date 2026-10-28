@@ -55,7 +55,7 @@ Compare the result with the checksum file. Windows binaries are not code-signed.
 - Send, receive, balances, transaction history and node information
 - No bundled mining software
 
-**Source provenance:** The October 26 v1.0.0 published tag is pinned to the original October 15 GUI commit (`b89c763`), which has v0.3.0 metadata. This is a historical release-source mismatch. The current `main` branch restores the complete wallet implementation and uses consistent v1.0.0 source metadata, but this does **not** retroactively change the already-distributed v1.0.0 packages or their GitHub source archives. An independently verified, freshly tagged follow-up release is required for a fully matching source-to-binary release. Do not rewrite the original tag.
+**Corrected desktop source (October 28, 2026):** [Download source ZIP](https://github.com/feelcoin-org/feelcoin-desktop/archive/f8438a7577c377fcfe38e529688967c5f62ad010.zip) · [Browse source at the correction commit](https://github.com/feelcoin-org/feelcoin-desktop/tree/f8438a7577c377fcfe38e529688967c5f62ad010). This snapshot restores the complete desktop wallet implementation and aligns its source metadata to v1.0.0. No Windows/Linux installers were changed. **Important:** GitHub's automatic “Source code (zip/tar.gz)” links on the original v1.0.0 release still follow the older October 15 tag (`b89c763`), which has 0.3.0 metadata; they have **not** been replaced. This corrected source snapshot is provided separately and is not a claim that previously published installers were built bit-for-bit from it.
 
 ## Security
 
